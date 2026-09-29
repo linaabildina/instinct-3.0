@@ -41,7 +41,11 @@ function resize(){const rect=canvas.getBoundingClientRect();size=Math.min(rect.w
 function draw(){const cx=size/2,cy=size/2,r=size/2-5,step=Math.PI*2/prizes.length;ctx.clearRect(0,0,size,size);prizes.forEach((p,i)=>{const a=angle+i*step-Math.PI/2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,a+step);ctx.closePath();ctx.fillStyle=i%2?"#8b5cf6":"#ec4899";ctx.fill();ctx.strokeStyle="#ffffff44";ctx.stroke();ctx.save();ctx.translate(cx,cy);ctx.rotate(a+step/2);ctx.textAlign="right";ctx.fillStyle="#fff";ctx.font="bold "+Math.max(10,size/34)+"px Arial";ctx.fillText(p.e+" "+(p.t.length>19?p.t.slice(0,18)+"…":p.t),r-10,4);ctx.restore()})}
 function decodeToken(token){try{const b64=token.split(".")[0].replace(/-/g,"+").replace(/_/g,"/");const json=decodeURIComponent(atob(b64+"=".repeat((4-b64.length%4)%4)).split("").map(c=>"%"+("00"+c.charCodeAt(0).toString(16)).slice(-2)).join(""));return JSON.parse(json)}catch(e){return null}}
 function spinTo(index){const step=Math.PI*2/prizes.length,desired=-(index*step+step/2),current=((angle%(Math.PI*2))+Math.PI*2)%(Math.PI*2);let delta=desired-current;if(delta<0)delta+=Math.PI*2;const start=angle,finish=angle+delta+Math.PI*2*(7+Math.floor(Math.random()*3)),duration=6500,started=performance.now();function frame(now){const p=Math.min(1,(now-started)/duration),eased=1-Math.pow(1-p,4);angle=start+(finish-start)*eased;draw();if(p<1){requestAnimationFrame(frame);return}angle=finish;draw();showResult(index)}requestAnimationFrame(frame)}
-function showResult(index){const p=prizes[index];document.getElementById("emoji").textContent=p.e;document.getElementById("name").textContent=p.t;document.getElementById("result").style.display="block";document.getElementById("spin").disabled=true;if(tg?.sendData)tg.sendData(JSON.stringify({type:"roulette_spin",token:window.__token}))}
+function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")} 
+function userKey(){return tg?.initDataUnsafe?.user?.id||"unknown"} 
+function lockIfAlreadySpun(){try{const key="roulette_spun_"+userKey()+"_"+todayKey();if(localStorage.getItem(key)==="1"){const b=document.getElementById("spin");b.disabled=true;b.textContent="🔒 УЖЕ КРУТИЛ СЕГОДНЯ";document.getElementById("notice").textContent="Ты уже получил(а) свой результат сегодня. Следующее вращение будет доступно завтра. 😏";document.getElementById("notice").style.display="block";return true}}catch(e){}return false}
+function markSpun(){try{localStorage.setItem("roulette_spun_"+userKey()+"_"+todayKey(),"1")}catch(e){}}
+function showResult(index){const p=prizes[index];markSpun();document.getElementById("emoji").textContent=p.e;document.getElementById("name").textContent=p.t;document.getElementById("result").style.display="block";document.getElementById("spin").disabled=true;document.getElementById("spin").textContent="🔒 УЖЕ КРУТИЛ СЕГОДНЯ";if(tg?.sendData)tg.sendData(JSON.stringify({type:"roulette_spin",token:window.__token}))}
 document.getElementById("spin").addEventListener("click",()=>{
  if(spinning)return;
  const payload=decodeToken(window.__token||"");
@@ -58,7 +62,7 @@ document.getElementById("spin").addEventListener("click",()=>{
  spinTo(targetIndex);
 });
 window.__token=new URLSearchParams(location.search).get("token")||tg?.initDataUnsafe?.start_param||"";
-window.addEventListener("resize",resize);resize();
+window.addEventListener("resize",resize);resize();lockIfAlreadySpun();
 </script>
 </body>
 </html>
