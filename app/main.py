@@ -1176,7 +1176,7 @@ async def command_roulette_start(message: Message):
         save_pending(settings.db_path, settings.group_chat_id, user_id, token)
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="🎡 ОТКРЫТЬ РУЛЕТКУ", web_app=WebAppInfo(url=ROULETTE_WEBAPP_URL))
+        InlineKeyboardButton(text="🎡 ОТКРЫТЬ РУЛЕТКУ", web_app=WebAppInfo(url=f"{ROULETTE_WEBAPP_URL}?token={token}"))
     ]])
     await message.answer(
         "🎡 <b>РУЛЕТКА ИНСТИНКТА</b>\n\n"
