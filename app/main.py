@@ -1227,7 +1227,7 @@ async def roulette_webapp_result(message: Message):
     display_name = message.from_user.full_name or message.from_user.first_name or "Игрок"
     memory_by_prize = {
         "master_dinner": (
-            f"🎡 РУЛЕТКА {today_key() if False else ''}: {display_name} выиграл(а) «Ужин с Мастером клана». "
+            f"🎡 РУЛЕТКА: {display_name} выиграл(а) «Ужин с Мастером клана». "
             "Обязательство: Мастер должен провести с игроком совместную активность по договорённости. "
             "Не считать выполненным, пока событие реально не состоялось."
         ),
