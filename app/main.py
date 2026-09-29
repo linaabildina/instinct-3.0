@@ -1165,7 +1165,7 @@ async def command_roulette(message: Message):
         return
 
     if spun_today(settings.db_path, settings.group_chat_id, user_id):
-        await message.answer("🎡 Ты уже крутил(а) рулетку сегодня. Следующее вращение будет доступно завтра. 😏")
+        await message.answer("🎡 Ты уже крутил(а) рулетку. Следующее вращение будет доступно через 24 часа после последнего вращения. 😏")
         return
 
     token = get_pending(settings.db_path, settings.group_chat_id, user_id)
@@ -1178,7 +1178,7 @@ async def command_roulette(message: Message):
     ]])
     await message.answer(
         "🎡 <b>РУЛЕТКА ИНСТИНКТА</b>\n\n"
-        "Сегодня тебе доступно <b>ровно одно вращение</b>.\n"
+        "Тебе доступно <b>одно вращение каждые 24 часа</b>.\n"
         "Открывай рулетку и узнай, что решила судьба. 👀",
         reply_markup=keyboard,
         parse_mode="HTML",
@@ -1205,7 +1205,7 @@ async def roulette_webapp_result(message: Message):
         return
 
     if spun_today(settings.db_path, settings.group_chat_id, user_id):
-        await message.answer("🎡 Ты уже использовал(а) сегодняшнее вращение. Второго приза не будет. 😏")
+        await message.answer("🎡 Это вращение уже использовано. Следующее будет доступно через 24 часа. 😏")
         return
 
     saved = save_spin(
@@ -1217,7 +1217,7 @@ async def roulette_webapp_result(message: Message):
         prize,
     )
     if not saved:
-        await message.answer("🎡 Сегодняшнее вращение уже было засчитано.")
+        await message.answer("🎡 Это вращение уже было засчитано. Следующее будет доступно через 24 часа.")
         return
 
     # Результат рулетки становится частью клановой памяти Алины.
