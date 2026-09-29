@@ -51,10 +51,9 @@ const BOT_USERNAME="instinctbot_bot";
 const prizes=[
 {id:"check",t:"1 чек",e:"💸"},{id:"yuan",t:"1 юань",e:"🐉"},{id:"zero",t:"0",e:"🕳️"},
 {id:"master_dinner",t:"Ужин с Мастером клана",e:"🍖"},{id:"clan_title",t:"Клановый титул",e:"👑"},
-{id:"master_10m",t:"Мастер на 10 минут",e:"👑"},{id:"clan_list_title",t:"Титул в клан-листе",e:"📜"},
-{id:"vip_person",t:"VIP-персона клана",e:"🏅"},{id:"clan_voice",t:"Голос клана",e:"📢"},
-{id:"secret_gift",t:"Секретный подарок",e:"🎁"},{id:"exile_right",t:"Право на изгнание",e:"💀"},
-{id:"genius_instinct",t:"Гений Инстинкта",e:"🧠"}];
+{id:"clan_list_title",t:"Титул в клан-листе",e:"📜"},{id:"vip_person",t:"VIP-персона клана",e:"🏅"},
+{id:"secret_gift",t:"Секретный подарок",e:"🎁"},{id:"genius_instinct",t:"Гений Инстинкта",e:"🧠"},
+{id:"boss_loot",t:"Забрать лут с босса КХ 9 этап",e:"🐉"},{id:"alina_kiss",t:"Поцелуй от Алины",e:"💋"}];
 const canvas=document.getElementById("wheel"),ctx=canvas.getContext("2d"),dpr=window.devicePixelRatio||1;
 let size=0,angle=0,spinning=false;
 function resize(){const rect=canvas.getBoundingClientRect();size=Math.min(rect.width,rect.height);canvas.width=size*dpr;canvas.height=size*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
