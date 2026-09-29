@@ -1,23 +1,25 @@
 import asyncio
+import json
 import sys
 import logging
 import re
 import random
 from html import escape
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     BotCommand, BotCommandScopeChat, BotCommandScopeChatAdministrators,
     BotCommandScopeChatMember, BotCommandScopeDefault,
-    CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, ReactionTypeEmoji,
+    CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, ReactionTypeEmoji, WebAppInfo,
 )
 
 from app.ai import AIEngine
 from app.config import load_settings
 from app.storage import Storage
+from app.roulette import (spun_today, get_pending, save_pending, make_token, verify_token, save_spin, choose_prize_id)
 from app.reminders import ReminderService, parse_command
 from app.knowledge_ui import router as knowledge_router
 from app.source_sync import collect_sources
@@ -70,6 +72,9 @@ _reminder_task: asyncio.Task | None = None
 _youtube_task: asyncio.Task | None = None
 _random_events_task: asyncio.Task | None = None
 _morning_greeting_task: asyncio.Task | None = None
+_roulette_task: asyncio.Task | None = None
+
+ROULETTE_WEBAPP_URL = "https://linaabildina.github.io/instinct-3.0/telegram-mini-app/roulette.html"
 _newbie_sessions: dict[int, dict] = {}
 _NEWBIE_YES = {"да", "д", "yes", "y", "конечно"}
 _NEWBIE_NO = {"нет", "н", "no", "n"}
@@ -1141,6 +1146,102 @@ async def command_memories(message: Message):
     await message.answer('\n'.join(lines))
 
 
+@dp.message(CommandStart(deep_link=True))
+async def command_roulette_start(message: Message):
+    """Открывает персональную рулетку только участнику клана."""
+    args = (message.text or "").split(maxsplit=2)
+    if len(args) < 2 or args[1].lower() != "roulette":
+        return
+    if message.chat.type != "private" or not message.from_user:
+        return
+
+    user_id = message.from_user.id
+    try:
+        member = await message.bot.get_chat_member(settings.group_chat_id, user_id)
+    except Exception:
+        await message.answer("🎡 Не смогла проверить твоё участие в клане. Попробуй ещё раз.")
+        return
+
+    if member.status not in {"member", "administrator", "creator"}:
+        await message.answer("🎡 Рулетка Инстинкта доступна только участникам клана.")
+        return
+
+    if spun_today(settings.db_path, settings.group_chat_id, user_id):
+        await message.answer("🎡 Ты уже крутил(а) рулетку сегодня. Следующее вращение будет доступно завтра. 😏")
+        return
+
+    token = get_pending(settings.db_path, settings.group_chat_id, user_id)
+    if not token:
+        token = make_token(message.bot.token, user_id, choose_prize_id())
+        save_pending(settings.db_path, settings.group_chat_id, user_id, token)
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="🎡 ОТКРЫТЬ РУЛЕТКУ", web_app=WebAppInfo(url=ROULETTE_WEBAPP_URL))
+    ]])
+    await message.answer(
+        "🎡 <b>РУЛЕТКА ИНСТИНКТА</b>\n\n"
+        "Сегодня тебе доступно <b>ровно одно вращение</b>.\n"
+        "Открывай рулетку и узнай, что решила судьба. 👀",
+        reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+@dp.message(F.web_app_data)
+async def roulette_webapp_result(message: Message):
+    if not message.from_user or message.chat.type != "private":
+        return
+    try:
+        data = json.loads(message.web_app_data.data)
+    except Exception:
+        await message.answer("🎡 Не удалось прочитать результат рулетки. Попробуй открыть её ещё раз.")
+        return
+    if data.get("type") != "roulette_spin":
+        return
+
+    user_id = message.from_user.id
+    token = str(data.get("token") or "")
+    prize = verify_token(message.bot.token, token, user_id)
+    if prize is None:
+        await message.answer("🎡 Результат рулетки недействителен или уже устарел.")
+        return
+
+    if spun_today(settings.db_path, settings.group_chat_id, user_id):
+        await message.answer("🎡 Ты уже использовал(а) сегодняшнее вращение. Второго приза не будет. 😏")
+        return
+
+    saved = save_spin(
+        settings.db_path,
+        settings.group_chat_id,
+        user_id,
+        message.from_user.username,
+        message.from_user.full_name or message.from_user.first_name,
+        prize,
+    )
+    if not saved:
+        await message.answer("🎡 Сегодняшнее вращение уже было засчитано.")
+        return
+
+    await message.answer(
+        f"🎉 <b>ТЕБЕ ВЫПАЛО: {prize.emoji} {prize.title.upper()}!</b>\n\n"
+        f"{prize.description}",
+        parse_mode="HTML",
+    )
+
+    try:
+        display_name = message.from_user.full_name or message.from_user.first_name or "Игрок"
+        await message.bot.send_message(
+            settings.group_chat_id,
+            f"🎡 <b>Результат рулетки!</b>\n\n"
+            f"{display_name} получил(а): {prize.emoji} <b>{prize.title}</b>\n\n"
+            f"{prize.description}",
+            message_thread_id=2,
+            parse_mode="HTML",
+        )
+    except Exception:
+        logging.exception("Could not announce roulette result")
+
+
 @dp.message(Command('start'))
 async def command_start(message: Message):
     if not await _is_admin_user(message): return
@@ -1419,6 +1520,42 @@ async def _morning_greeting_forever(bot: Bot):
             logging.exception('Morning greeting failed: %s', exc)
 
 
+
+
+async def _roulette_announcement_forever(bot: Bot):
+    """Каждый день в 10:30 по времени Алматы объявляет новую рулетку."""
+    from zoneinfo import ZoneInfo
+    while True:
+        now = datetime.now(ZoneInfo("Asia/Almaty"))
+        target = now.replace(hour=10, minute=30, second=0, microsecond=0)
+        if now >= target:
+            target += timedelta(days=1)
+        await asyncio.sleep(max(1, (target - now).total_seconds()))
+        try:
+            me = await bot.get_me()
+            if not me.username:
+                continue
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(
+                    text="🎡 КРУТИТЬ РУЛЕТКУ",
+                    url=f"https://t.me/{me.username}?start=roulette",
+                )
+            ]])
+            await bot.send_message(
+                settings.group_chat_id,
+                "🎡 <b>РУЛЕТКА ИНСТИНКТА ОТКРЫТА!</b>\n\n"
+                "Каждому участнику доступно <b>ровно одно вращение сегодня</b>.\n"
+                "Нажми кнопку и узнай, что тебе приготовила судьба. 👀",
+                message_thread_id=2,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.exception("Roulette announcement failed")
+
+
 async def _youtube_forever(bot: Bot):
     loop = asyncio.get_running_loop()
 
@@ -1460,7 +1597,7 @@ def request_stop():
 
 
 async def main():
-    global _bot_id, _polling_loop, _polling_task, _knowledge_sync_task, _news_monitor_thread, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task
+    global _bot_id, _polling_loop, _polling_task, _knowledge_sync_task, _news_monitor_thread, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task, _roulette_task
     _polling_loop = asyncio.get_running_loop()
     bot = Bot(settings.telegram_token)
     me = await bot.get_me()
@@ -1476,6 +1613,7 @@ async def main():
     _reminder_task = asyncio.create_task(_reminders_forever(bot))
     _youtube_task = asyncio.create_task(_youtube_forever(bot))
     _morning_greeting_task = asyncio.create_task(_morning_greeting_forever(bot))
+    _roulette_task = asyncio.create_task(_roulette_announcement_forever(bot))
     if run_news_monitor_in_thread is not None:
         import threading
         _news_monitor_thread = threading.Thread(target=run_news_monitor_in_thread, name='telegram-news-monitor', daemon=True)
@@ -1484,7 +1622,7 @@ async def main():
         _polling_task = asyncio.current_task()
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
-        for task in (_knowledge_sync_task, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task):
+        for task in (_knowledge_sync_task, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task, _roulette_task):
             if task and not task.done(): task.cancel()
         await bot.session.close()
 
