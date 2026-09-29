@@ -1314,15 +1314,26 @@ async def roulette_webapp_result(message: Message):
         }
         group_text = special_group.get(
             prize.id,
-            f"🎡 <b>Результат рулетки!</b>\n\n"
-            f"Алина объявляет: <b>{escape(display_name)}</b> получил(а): "
+            f"🎡 <b>РЕЗУЛЬТАТ РУЛЕТКИ ИНСТИНКТА</b>\n\n"
+            f"👤 Победитель: <b>{escape(display_name)}</b>\n\n"
             f"{prize.emoji} <b>{escape(prize.title)}</b>\n\n"
             f"{prize.description}",
         )
+
+        # Красивое объявление в клановой теме. Кнопка ведёт к персональному
+        # запуску рулетки через /start roulette; повторное вращение всё равно
+        # блокируется серверной проверкой до следующего дня.
+        roulette_button = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text="🎡 КРУТИТЬ РУЛЕТКУ",
+                url=f"https://t.me/{(await message.bot.get_me()).username}?start=roulette",
+            )
+        ]])
         await message.bot.send_message(
             settings.group_chat_id,
             group_text,
             message_thread_id=2,
+            reply_markup=roulette_button,
             parse_mode="HTML",
         )
     except Exception:
