@@ -1146,12 +1146,9 @@ async def command_memories(message: Message):
     await message.answer('\n'.join(lines))
 
 
-@dp.message(CommandStart(deep_link=True))
-async def command_roulette_start(message: Message):
-    """Открывает персональную рулетку только участнику клана."""
-    args = (message.text or "").split(maxsplit=2)
-    if len(args) < 2 or args[1].lower() != "roulette":
-        return
+@dp.message(Command("roulette"))
+async def command_roulette(message: Message):
+    """Открывает персональную рулетку по обычной команде /roulette."""
     if message.chat.type != "private" or not message.from_user:
         return
 
@@ -1448,7 +1445,7 @@ async def on_message(message: Message):
     original_text = (message.text or '').strip()
     if not original_text: return
     if _bot_id is not None and message.from_user and message.from_user.id == _bot_id: return
-    if original_text.split()[0].split('@')[0].lower() in {'/start','/stop','/status','/consultant','/watch','/watches','/unwatch','/history','/market','/reminders','/cancel','/newbie','/roles','/officer','/unofficer','/officers'}: return
+    if original_text.split()[0].split('@')[0].lower() in {'/start','/stop','/status','/consultant','/roulette','/watch','/watches','/unwatch','/history','/market','/reminders','/cancel','/newbie','/roles','/officer','/unofficer','/officers'}: return
     if not storage.is_chat_enabled(message.chat.id): return
     is_reply_to_alina = bool(message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.id == _bot_id)
     display_name = message.from_user.full_name if message.from_user else None
@@ -1584,7 +1581,7 @@ async def _roulette_announcement_forever(bot: Bot):
             keyboard = InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(
                     text="🎡 КРУТИТЬ РУЛЕТКУ",
-                    url=f"https://t.me/{me.username}?start=roulette",
+                    url=f"https://t.me/{me.username}",
                 )
             ]])
             await bot.send_message(
