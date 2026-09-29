@@ -6,9 +6,29 @@
 <title>Рулетка Инстинкта</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{--bg:#11101a;--card:#1d1a2b;--text:#fff;--muted:#aaa4bd}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 10%,#33205a 0,#11101a 55%);color:var(--text);font-family:Arial,sans-serif;display:flex;justify-content:center}
-.wrap{width:min(100%,520px);padding:18px 14px 28px;text-align:center}.title{font-size:28px;font-weight:900;margin:6px 0 4px}.sub{color:var(--muted);font-size:14px;margin-bottom:16px}.wheelbox{position:relative;width:min(92vw,430px);aspect-ratio:1;margin:0 auto 18px}.wheel{width:100%;height:100%;display:block;filter:drop-shadow(0 12px 24px #0008)}.pointer{position:absolute;top:-3px;left:50%;transform:translateX(-50%);z-index:2;font-size:38px;text-shadow:0 3px 5px #000}.center{position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:64px;height:64px;border-radius:50%;background:#fff;border:7px solid #161321;box-shadow:0 4px 12px #0008;z-index:2}.spin{border:0;border-radius:16px;padding:16px 34px;background:linear-gradient(135deg,#8b5cf6,#ec4899);color:white;font-size:18px;font-weight:900;cursor:pointer;box-shadow:0 8px 20px #0005}.spin:disabled{opacity:.5;cursor:default}.result{display:none;margin-top:18px;padding:18px;border-radius:18px;background:#1d1a2b;border:1px solid #ffffff18}.result .emoji{font-size:48px}.result .name{font-size:22px;font-weight:900;margin:8px 0}.result .hint{color:var(--muted);line-height:1.45;font-size:14px}.notice{display:none;margin:18px 0 0;padding:16px;border-radius:16px;background:#1d1a2b;color:var(--muted);line-height:1.5}
+:root{--bg:#070914;--panel:#11182a;--gold:#e8c56a;--gold2:#fff0a8;--violet:#6d4bd8;--blue:#192c66;--text:#fffaf0;--muted:#b9b8c8}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:var(--text);font-family:Georgia,"Times New Roman",serif;display:flex;justify-content:center;background:radial-gradient(circle at 50% 8%,#263b78 0,#11172b 34%,#070914 75%);overflow-x:hidden}
+body:before,body:after{content:"";position:fixed;inset:auto 0 0;height:35vh;pointer-events:none;background:linear-gradient(180deg,transparent,#050610);z-index:-1}
+.wrap{width:min(100%,540px);padding:18px 14px 30px;text-align:center}
+.title{font-size:30px;line-height:1.05;font-weight:900;letter-spacing:1px;margin:4px 0 5px;text-shadow:0 0 18px #8e73ff88,0 2px 0 #000}
+.title:after{content:"✦  ✦  ✦";display:block;color:var(--gold);font-size:12px;letter-spacing:7px;margin-top:7px}
+.sub{color:#d8d3e6;font-size:13px;margin:0 auto 14px;letter-spacing:.5px}
+.wheelbox{position:relative;width:min(94vw,440px);aspect-ratio:1;margin:0 auto 16px;padding:9px;border-radius:50%;background:radial-gradient(circle,#fff4b4 0 4%,#b98a2e 5% 7%,#35245d 8% 100%);box-shadow:0 0 0 3px #5f471b,0 0 0 7px #d7ad4e,0 0 28px #a77affaa,0 18px 45px #000b}
+.wheelbox:before{content:"";position:absolute;inset:-5px;border-radius:50%;border:1px solid #fff1a866;box-shadow:0 0 25px #e8c56a55 inset;pointer-events:none;z-index:3}
+.wheel{width:100%;height:100%;display:block;border-radius:50%;filter:drop-shadow(0 8px 14px #000a)}
+.pointer{position:absolute;top:-4px;left:50%;transform:translateX(-50%);z-index:5;font-size:42px;color:var(--gold2);text-shadow:0 2px 0 #4c3108,0 0 16px #ffd95a;line-height:1}
+.center{position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:72px;height:72px;border-radius:50%;background:radial-gradient(circle,#fff6b5 0 13%,#d8a83d 18%,#5a3c8d 42%,#12182d 68%,#080b14 100%);border:4px solid #e4c56d;box-shadow:0 0 0 3px #3b2b50,0 0 22px #b98cffaa,0 4px 14px #000b;z-index:4}
+.center:after{content:"✦";position:absolute;inset:0;display:grid;place-items:center;color:#fff6bd;font-size:28px;text-shadow:0 0 12px #fff}
+.spin{border:1px solid #ffe9a0;border-radius:14px;padding:15px 34px;background:linear-gradient(180deg,#e8c86d,#a97524);color:#241607;font-family:Georgia,"Times New Roman",serif;font-size:19px;font-weight:900;letter-spacing:1px;cursor:pointer;box-shadow:0 5px 0 #4c2e0d,0 0 22px #d8a63d66;text-shadow:0 1px #fff4}
+.spin:active:not(:disabled){transform:translateY(2px);box-shadow:0 3px 0 #4c2e0d,0 0 18px #d8a63d55}
+.spin:disabled{opacity:.55;cursor:default;filter:saturate(.65)}
+.result{display:none;margin:20px 3px 0;padding:20px;border-radius:18px;background:linear-gradient(145deg,#192544,#0e1425);border:1px solid #d7ad4e88;box-shadow:0 0 28px #8b6cff33,inset 0 0 25px #ffffff08}
+.result .emoji{font-size:54px;filter:drop-shadow(0 0 10px #fff6b088)}
+.result .name{font-size:23px;font-weight:900;margin:8px 0;color:#ffe79a;text-shadow:0 0 12px #d4a83f66}
+.result .hint{color:#c9c5d7;line-height:1.5;font-size:14px}
+.notice{display:none;margin:18px 3px 0;padding:16px;border-radius:16px;background:#10182a;border:1px solid #d7ad4e55;color:#d6d2df;line-height:1.5;box-shadow:inset 0 0 20px #0005}
+@media(max-width:380px){.title{font-size:25px}.wheelbox{width:94vw}.center{width:62px;height:62px}.spin{font-size:17px;padding:14px 25px}}
 </style>
 </head>
 <body>
@@ -38,7 +58,7 @@ const prizes=[
 const canvas=document.getElementById("wheel"),ctx=canvas.getContext("2d"),dpr=window.devicePixelRatio||1;
 let size=0,angle=0,spinning=false;
 function resize(){const rect=canvas.getBoundingClientRect();size=Math.min(rect.width,rect.height);canvas.width=size*dpr;canvas.height=size*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
-function draw(){const cx=size/2,cy=size/2,r=size/2-5,step=Math.PI*2/prizes.length;ctx.clearRect(0,0,size,size);prizes.forEach((p,i)=>{const a=angle+i*step-Math.PI/2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,a+step);ctx.closePath();ctx.fillStyle=i%2?"#8b5cf6":"#ec4899";ctx.fill();ctx.strokeStyle="#ffffff44";ctx.stroke();ctx.save();ctx.translate(cx,cy);ctx.rotate(a+step/2);ctx.textAlign="right";ctx.fillStyle="#fff";ctx.font="bold "+Math.max(10,size/34)+"px Arial";ctx.fillText(p.e+" "+(p.t.length>19?p.t.slice(0,18)+"…":p.t),r-10,4);ctx.restore()})}
+function draw(){const cx=size/2,cy=size/2,r=size/2-7,step=Math.PI*2/prizes.length;ctx.clearRect(0,0,size,size);prizes.forEach((p,i)=>{const a=angle+i*step-Math.PI/2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,a+step);ctx.closePath();const g=ctx.createLinearGradient(cx+Math.cos(a)*r,cy+Math.sin(a)*r,cx,cy);g.addColorStop(0,i%2?"#49358e":"#183f76");g.addColorStop(.55,i%2?"#7654c7":"#245da0");g.addColorStop(1,i%2?"#241a55":"#10284e");ctx.fillStyle=g;ctx.fill();ctx.strokeStyle="#e8c56a99";ctx.lineWidth=1.2;ctx.stroke();ctx.save();ctx.translate(cx,cy);ctx.rotate(a+step/2);ctx.textAlign="right";ctx.fillStyle="#fff5c4";ctx.shadowColor="#000";ctx.shadowBlur=4;ctx.font="bold "+Math.max(10,size/35)+"px Georgia";ctx.fillText(p.e+" "+(p.t.length>18?p.t.slice(0,17)+"…":p.t),r-12,4);ctx.restore()});ctx.beginPath();ctx.arc(cx,cy,r-1,0,Math.PI*2);ctx.strokeStyle="#f4d77a";ctx.lineWidth=3;ctx.stroke()}
 function decodeToken(token){try{const b64=token.split(".")[0].replace(/-/g,"+").replace(/_/g,"/");const json=decodeURIComponent(atob(b64+"=".repeat((4-b64.length%4)%4)).split("").map(c=>"%"+("00"+c.charCodeAt(0).toString(16)).slice(-2)).join(""));return JSON.parse(json)}catch(e){return null}}
 function spinTo(index){const step=Math.PI*2/prizes.length,desired=-(index*step+step/2),current=((angle%(Math.PI*2))+Math.PI*2)%(Math.PI*2);let delta=desired-current;if(delta<0)delta+=Math.PI*2;const start=angle,finish=angle+delta+Math.PI*2*(7+Math.floor(Math.random()*3)),duration=6500,started=performance.now();function frame(now){const p=Math.min(1,(now-started)/duration),eased=1-Math.pow(1-p,4);angle=start+(finish-start)*eased;draw();if(p<1){requestAnimationFrame(frame);return}angle=finish;draw();showResult(index)}requestAnimationFrame(frame)}
 function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")} 
