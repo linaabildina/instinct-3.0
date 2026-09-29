@@ -7,7 +7,7 @@ import json
 import secrets
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -83,13 +83,26 @@ def _db(db_path: str):
     return conn
 
 
-def spun_today(db_path: str, chat_id: int, user_id: int) -> bool:
-    day = today_key()
+def cooldown_remaining(db_path: str, chat_id: int, user_id: int) -> int:
+    """Seconds remaining until 24 hours have passed since the last spin."""
     with _db(db_path) as conn:
-        return conn.execute(
-            "SELECT 1 FROM roulette_spins WHERE chat_id=? AND user_id=? AND spin_date=?",
-            (chat_id, user_id, day),
-        ).fetchone() is not None
+        row = conn.execute(
+            "SELECT created_at FROM roulette_spins WHERE chat_id=? AND user_id=? "
+            "ORDER BY created_at DESC LIMIT 1",
+            (chat_id, user_id),
+        ).fetchone()
+    if not row or not row[0]:
+        return 0
+    try:
+        last = datetime.fromisoformat(row[0])
+        remaining = (last + timedelta(hours=24) - datetime.now(TZ)).total_seconds()
+        return max(0, int(remaining))
+    except Exception:
+        return 0
+
+
+def spun_today(db_path: str, chat_id: int, user_id: int) -> bool:
+    return cooldown_remaining(db_path, chat_id, user_id) > 0
 
 
 def get_pending(db_path: str, chat_id: int, user_id: int):
@@ -145,7 +158,7 @@ def verify_token(bot_token: str, token: str, user_id: int):
             return None
         padding = "=" * (-len(encoded) % 4)
         payload = json.loads(base64.urlsafe_b64decode((encoded + padding).encode()).decode())
-        if payload.get("u") != user_id or payload.get("d") != today_key():
+        if payload.get("u") != user_id:
             return None
         prize = PRIZES_BY_ID.get(payload.get("p"))
         return prize
