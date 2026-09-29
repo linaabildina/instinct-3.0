@@ -3,85 +3,57 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Рулетка Инстинкта</title>
+<title>Рулетка гильдии Instinct</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{--bg:#070914;--panel:#11182a;--gold:#e8c56a;--gold2:#fff0a8;--violet:#6d4bd8;--blue:#192c66;--text:#fffaf0;--muted:#b9b8c8}
-*{box-sizing:border-box}
-body{margin:0;min-height:100vh;color:var(--text);font-family:Georgia,"Times New Roman",serif;display:flex;justify-content:center;background:radial-gradient(circle at 50% 8%,#263b78 0,#11172b 34%,#070914 75%);overflow-x:hidden}
-body:before,body:after{content:"";position:fixed;inset:auto 0 0;height:35vh;pointer-events:none;background:linear-gradient(180deg,transparent,#050610);z-index:-1}
-.wrap{width:min(100%,540px);padding:18px 14px 30px;text-align:center}
-.title{font-size:30px;line-height:1.05;font-weight:900;letter-spacing:1px;margin:4px 0 5px;text-shadow:0 0 18px #8e73ff88,0 2px 0 #000}
-.title:after{content:"✦  ✦  ✦";display:block;color:var(--gold);font-size:12px;letter-spacing:7px;margin-top:7px}
-.sub{color:#d8d3e6;font-size:13px;margin:0 auto 14px;letter-spacing:.5px}
-.wheelbox{position:relative;width:min(94vw,440px);aspect-ratio:1;margin:0 auto 16px;padding:9px;border-radius:50%;background:radial-gradient(circle,#fff4b4 0 4%,#b98a2e 5% 7%,#35245d 8% 100%);box-shadow:0 0 0 3px #5f471b,0 0 0 7px #d7ad4e,0 0 28px #a77affaa,0 18px 45px #000b}
-.wheelbox:before{content:"";position:absolute;inset:-5px;border-radius:50%;border:1px solid #fff1a866;box-shadow:0 0 25px #e8c56a55 inset;pointer-events:none;z-index:3}
-.wheel{width:100%;height:100%;display:block;border-radius:50%;filter:drop-shadow(0 8px 14px #000a)}
-.pointer{position:absolute;top:-4px;left:50%;transform:translateX(-50%);z-index:5;font-size:42px;color:var(--gold2);text-shadow:0 2px 0 #4c3108,0 0 16px #ffd95a;line-height:1}
-.center{position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:72px;height:72px;border-radius:50%;background:radial-gradient(circle,#fff6b5 0 13%,#d8a83d 18%,#5a3c8d 42%,#12182d 68%,#080b14 100%);border:4px solid #e4c56d;box-shadow:0 0 0 3px #3b2b50,0 0 22px #b98cffaa,0 4px 14px #000b;z-index:4}
-.center:after{content:"✦";position:absolute;inset:0;display:grid;place-items:center;color:#fff6bd;font-size:28px;text-shadow:0 0 12px #fff}
-.spin{border:1px solid #ffe9a0;border-radius:14px;padding:15px 34px;background:linear-gradient(180deg,#e8c86d,#a97524);color:#241607;font-family:Georgia,"Times New Roman",serif;font-size:19px;font-weight:900;letter-spacing:1px;cursor:pointer;box-shadow:0 5px 0 #4c2e0d,0 0 22px #d8a63d66;text-shadow:0 1px #fff4}
-.spin:active:not(:disabled){transform:translateY(2px);box-shadow:0 3px 0 #4c2e0d,0 0 18px #d8a63d55}
-.spin:disabled{opacity:.55;cursor:default;filter:saturate(.65)}
-.result{display:none;margin:20px 3px 0;padding:20px;border-radius:18px;background:linear-gradient(145deg,#192544,#0e1425);border:1px solid #d7ad4e88;box-shadow:0 0 28px #8b6cff33,inset 0 0 25px #ffffff08}
-.result .emoji{font-size:54px;filter:drop-shadow(0 0 10px #fff6b088)}
-.result .name{font-size:23px;font-weight:900;margin:8px 0;color:#ffe79a;text-shadow:0 0 12px #d4a83f66}
-.result .hint{color:#c9c5d7;line-height:1.5;font-size:14px}
-.notice{display:none;margin:18px 3px 0;padding:16px;border-radius:16px;background:#10182a;border:1px solid #d7ad4e55;color:#d6d2df;line-height:1.5;box-shadow:inset 0 0 20px #0005}
-@media(max-width:380px){.title{font-size:25px}.wheelbox{width:94vw}.center{width:62px;height:62px}.spin{font-size:17px;padding:14px 25px}}
+:root{--bg:#070b12;--panel:#101722;--gold:#d9b45b;--gold2:#ffe7a0;--blue:#17345e;--blue2:#285b8f;--ice:#b8d9ee;--text:#f5f0df}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;color:var(--text);font-family:Georgia,"Times New Roman",serif;text-align:center;background:radial-gradient(circle at 50% 5%,#315d88 0,#172c47 22%,#0b121d 55%,#05080d 100%);overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at 15% 20%,#9dd8ff18 0 2px,transparent 3px),radial-gradient(circle at 80% 32%,#fff3b21a 0 2px,transparent 3px),linear-gradient(120deg,transparent 35%,#d9b45b09 50%,transparent 65%);background-size:170px 150px,220px 180px,100% 100%;z-index:-1}
+.wrap{width:min(100%,560px);margin:auto;padding:16px 12px 34px}
+.badge{display:inline-block;padding:5px 14px;border:1px solid #d9b45b88;border-radius:20px;background:#08111dcc;color:#e8d08d;font-size:11px;letter-spacing:2px;text-transform:uppercase;box-shadow:0 0 18px #77b9ed22}
+.title{font-size:32px;line-height:1.05;font-weight:900;letter-spacing:1px;margin:9px 0 4px;text-transform:uppercase;text-shadow:0 2px 0 #000,0 0 18px #9ac8ed55}
+.title span{color:#e2bd63}
+.subtitle{font-size:14px;color:#c7d5df;margin-bottom:14px}
+.crest{font-size:26px;margin:3px 0 8px;text-shadow:0 0 15px #ffe9a0}
+.wheelbox{position:relative;width:min(95vw,450px);aspect-ratio:1;margin:0 auto 17px;padding:10px;border-radius:50%;background:radial-gradient(circle,#f8e7a0 0 3%,#b98a35 4% 7%,#101c2c 8% 100%);box-shadow:0 0 0 2px #523e1d,0 0 0 5px #e2c36d,0 0 0 8px #173b60,0 0 28px #9dd8ff55,0 18px 45px #000d}
+.wheelbox:after{content:"";position:absolute;inset:4px;border-radius:50%;border:1px solid #fff0b855;pointer-events:none;z-index:4}
+.wheel{width:100%;height:100%;display:block;border-radius:50%;filter:drop-shadow(0 8px 14px #000c)}
+.pointer{position:absolute;top:-10px;left:50%;transform:translateX(-50%);z-index:7;font-size:45px;color:#ffe9a0;text-shadow:0 2px 0 #39250b,0 0 16px #fff1a0;line-height:1}
+.center{position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;background:radial-gradient(circle,#fff0ad 0 10%,#c79539 15%,#254e77 35%,#0b1623 68%);border:4px solid #e4c66d;box-shadow:0 0 0 3px #182f49,0 0 22px #b9ddff88,0 4px 14px #000;z-index:5}
+.center:after{content:"I";position:absolute;inset:0;display:grid;place-items:center;color:#fff3bd;font-weight:900;font-size:27px;text-shadow:0 0 12px #fff}
+.spin{border:1px solid #ffe8a1;border-radius:12px;padding:15px 38px;background:linear-gradient(180deg,#f0d37b,#a87829);color:#201607;font-family:Georgia,"Times New Roman",serif;font-size:19px;font-weight:900;letter-spacing:1.5px;cursor:pointer;box-shadow:0 5px 0 #42280b,0 0 25px #d8b05266}
+.spin:active:not(:disabled){transform:translateY(2px);box-shadow:0 3px 0 #42280b}.spin:disabled{opacity:.55;cursor:default}
+.result,.notice{display:none;margin:19px 3px 0;padding:19px;border-radius:15px;background:linear-gradient(145deg,#17283b,#0a111b);border:1px solid #d9b45b77;box-shadow:0 0 28px #6eb3e333,inset 0 0 25px #fff1}
+.result .emoji{font-size:54px;filter:drop-shadow(0 0 10px #fff4ad)}.result .name{font-size:23px;font-weight:900;margin:8px 0;color:#ffe39a;text-shadow:0 0 12px #d4a83f66}.result .hint{color:#c9d5df;line-height:1.5;font-size:14px}
+.notice{color:#d3dce3;line-height:1.5}
+@media(max-width:380px){.title{font-size:26px}.wheelbox{width:94vw}.center{width:64px;height:64px}.spin{font-size:17px;padding:14px 26px}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="title">🎡 Рулетка Инстинкта</div>
-  <div class="sub">Один игрок — одно вращение в сутки</div>
-  <div class="wheelbox">
-    <div class="pointer">▼</div><canvas id="wheel" class="wheel"></canvas><div class="center"></div>
-  </div>
-  <button id="spin" class="spin">🎰 КРУТИТЬ</button>
+  <div class="badge">Perfect World • Guild Instinct</div>
+  <div class="crest">⚔️ 🐉 ⚔️</div>
+  <div class="title">Рулетка гильдии <span>Instinct</span></div>
+  <div class="subtitle">Один игрок — одно вращение в сутки</div>
+  <div class="wheelbox"><div class="pointer">▼</div><canvas id="wheel" class="wheel"></canvas><div class="center"></div></div>
+  <button id="spin" class="spin">⚔ КРУТИТЬ РУЛЕТКУ ⚔</button>
   <div id="notice" class="notice">Сначала получи персональный запуск у Алины. Сейчас открою её чат. 👀</div>
-  <div id="result" class="result">
-    <div id="emoji" class="emoji"></div><div id="name" class="name"></div>
-    <div class="hint">Результат уже отправлен Алине. Жди поздравлений в клане. 😈</div>
-  </div>
+  <div id="result" class="result"><div id="emoji" class="emoji"></div><div id="name" class="name"></div><div class="hint">Результат уже отправлен Алине. Жди поздравлений в гильдии. 😈</div></div>
 </div>
 <script>
-const tg=window.Telegram?.WebApp; tg?.ready(); tg?.expand();
-const BOT_USERNAME="instinctbot_bot";
-const prizes=[
-{id:"check",t:"1 чек",e:"💸"},{id:"yuan",t:"1 юань",e:"🐉"},{id:"zero",t:"0",e:"🕳️"},
-{id:"master_dinner",t:"Ужин с Мастером клана",e:"🍖"},{id:"clan_title",t:"Клановый титул",e:"👑"},
-{id:"clan_list_title",t:"Титул в клан-листе",e:"📜"},{id:"vip_person",t:"VIP-персона клана",e:"🏅"},
-{id:"secret_gift",t:"Секретный подарок",e:"🎁"},{id:"genius_instinct",t:"Гений Инстинкта",e:"🧠"},
-{id:"boss_loot",t:"Забрать лут с босса КХ 9 этап",e:"🐉"},{id:"alina_kiss",t:"Поцелуй от Алины",e:"💋"}];
-const canvas=document.getElementById("wheel"),ctx=canvas.getContext("2d"),dpr=window.devicePixelRatio||1;
-let size=0,angle=0,spinning=false;
-function resize(){const rect=canvas.getBoundingClientRect();size=Math.min(rect.width,rect.height);canvas.width=size*dpr;canvas.height=size*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
-function draw(){const cx=size/2,cy=size/2,r=size/2-7,step=Math.PI*2/prizes.length;ctx.clearRect(0,0,size,size);prizes.forEach((p,i)=>{const a=angle+i*step-Math.PI/2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,a+step);ctx.closePath();const g=ctx.createLinearGradient(cx+Math.cos(a)*r,cy+Math.sin(a)*r,cx,cy);g.addColorStop(0,i%2?"#49358e":"#183f76");g.addColorStop(.55,i%2?"#7654c7":"#245da0");g.addColorStop(1,i%2?"#241a55":"#10284e");ctx.fillStyle=g;ctx.fill();ctx.strokeStyle="#e8c56a99";ctx.lineWidth=1.2;ctx.stroke();ctx.save();ctx.translate(cx,cy);ctx.rotate(a+step/2);ctx.textAlign="right";ctx.fillStyle="#fff5c4";ctx.shadowColor="#000";ctx.shadowBlur=4;ctx.font="bold "+Math.max(10,size/35)+"px Georgia";ctx.fillText(p.e+" "+(p.t.length>18?p.t.slice(0,17)+"…":p.t),r-12,4);ctx.restore()});ctx.beginPath();ctx.arc(cx,cy,r-1,0,Math.PI*2);ctx.strokeStyle="#f4d77a";ctx.lineWidth=3;ctx.stroke()}
+const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();const BOT_USERNAME="instinctbot_bot";
+const prizes=[{id:"check",t:"1 чек",e:"💸"},{id:"yuan",t:"1 юань",e:"🐉"},{id:"zero",t:"0",e:"🕳️"},{id:"master_dinner",t:"Ужин с Мастером клана",e:"🍖"},{id:"clan_title",t:"Клановый титул",e:"👑"},{id:"clan_list_title",t:"Титул в клан-листе",e:"📜"},{id:"vip_person",t:"VIP-персона клана",e:"🏅"},{id:"secret_gift",t:"Секретный подарок",e:"🎁"},{id:"genius_instinct",t:"Гений Инстинкта",e:"🧠"},{id:"boss_loot",t:"Забрать лут с босса КХ 9 этап",e:"🐉"},{id:"alina_kiss",t:"Поцелуй от Алины",e:"💋"}];
+const canvas=document.getElementById("wheel"),ctx=canvas.getContext("2d"),dpr=window.devicePixelRatio||1;let size=0,angle=0,spinning=false;
+function resize(){const r=canvas.getBoundingClientRect();size=Math.min(r.width,r.height);canvas.width=size*dpr;canvas.height=size*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
+function draw(){const cx=size/2,cy=size/2,r=size/2-7,step=Math.PI*2/prizes.length;ctx.clearRect(0,0,size,size);prizes.forEach((p,i)=>{const a=angle+i*step-Math.PI/2;ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,r,a,a+step);ctx.closePath();const g=ctx.createLinearGradient(cx+Math.cos(a)*r,cy+Math.sin(a)*r,cx,cy);g.addColorStop(0,i%2?"#284e73":"#173b63");g.addColorStop(.55,i%2?"#3e78a3":"#245b8d");g.addColorStop(1,i%2?"#172d49":"#10253d");ctx.fillStyle=g;ctx.fill();ctx.strokeStyle="#d9b45b99";ctx.lineWidth=1.2;ctx.stroke();ctx.save();ctx.translate(cx,cy);ctx.rotate(a+step/2);ctx.textAlign="right";ctx.fillStyle="#fff0bd";ctx.shadowColor="#000";ctx.shadowBlur=4;ctx.font="bold "+Math.max(10,size/35)+"px Georgia";ctx.fillText(p.e+" "+(p.t.length>18?p.t.slice(0,17)+"…":p.t),r-12,4);ctx.restore()});ctx.beginPath();ctx.arc(cx,cy,r-1,0,Math.PI*2);ctx.strokeStyle="#f4d77a";ctx.lineWidth=3;ctx.stroke()}
 function decodeToken(token){try{const b64=token.split(".")[0].replace(/-/g,"+").replace(/_/g,"/");const json=decodeURIComponent(atob(b64+"=".repeat((4-b64.length%4)%4)).split("").map(c=>"%"+("00"+c.charCodeAt(0).toString(16)).slice(-2)).join(""));return JSON.parse(json)}catch(e){return null}}
-function spinTo(index){const step=Math.PI*2/prizes.length,desired=-(index*step+step/2),current=((angle%(Math.PI*2))+Math.PI*2)%(Math.PI*2);let delta=desired-current;if(delta<0)delta+=Math.PI*2;const start=angle,finish=angle+delta+Math.PI*2*(7+Math.floor(Math.random()*3)),duration=6500,started=performance.now();function frame(now){const p=Math.min(1,(now-started)/duration),eased=1-Math.pow(1-p,4);angle=start+(finish-start)*eased;draw();if(p<1){requestAnimationFrame(frame);return}angle=finish;draw();showResult(index)}requestAnimationFrame(frame)}
-function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")} 
-function userKey(){return tg?.initDataUnsafe?.user?.id||"unknown"} 
-function lockIfAlreadySpun(){try{const key="roulette_spun_"+userKey()+"_"+todayKey();if(localStorage.getItem(key)==="1"){const b=document.getElementById("spin");b.disabled=true;b.textContent="🔒 УЖЕ КРУТИЛ СЕГОДНЯ";document.getElementById("notice").textContent="Ты уже получил(а) свой результат сегодня. Следующее вращение будет доступно завтра. 😏";document.getElementById("notice").style.display="block";return true}}catch(e){}return false}
+function spinTo(index){const step=Math.PI*2/prizes.length,desired=-(index*step+step/2),current=((angle%(Math.PI*2))+Math.PI*2)%(Math.PI*2);let delta=desired-current;if(delta<0)delta+=Math.PI*2;const start=angle,finish=angle+delta+Math.PI*2*(7+Math.floor(Math.random()*3)),duration=6500,started=performance.now();function frame(now){const p=Math.min(1,(now-started)/duration),e=1-Math.pow(1-p,4);angle=start+(finish-start)*e;draw();if(p<1){requestAnimationFrame(frame);return}angle=finish;draw();showResult(index)}requestAnimationFrame(frame)}
+function todayKey(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}function userKey(){return tg?.initDataUnsafe?.user?.id||"unknown"}
+function lockIfAlreadySpun(){try{const k="roulette_spun_"+userKey()+"_"+todayKey();if(localStorage.getItem(k)==="1"){const b=document.getElementById("spin");b.disabled=true;b.textContent="🔒 УЖЕ КРУТИЛ СЕГОДНЯ";const n=document.getElementById("notice");n.textContent="Ты уже получил(а) свой результат сегодня. Следующее вращение будет доступно завтра. 😏";n.style.display="block";return true}}catch(e){}return false}
 function markSpun(){try{localStorage.setItem("roulette_spun_"+userKey()+"_"+todayKey(),"1")}catch(e){}}
 function showResult(index){const p=prizes[index];markSpun();document.getElementById("emoji").textContent=p.e;document.getElementById("name").textContent=p.t;document.getElementById("result").style.display="block";document.getElementById("spin").disabled=true;document.getElementById("spin").textContent="🔒 УЖЕ КРУТИЛ СЕГОДНЯ";if(tg?.sendData)tg.sendData(JSON.stringify({type:"roulette_spin",token:window.__token}))}
-document.getElementById("spin").addEventListener("click",()=>{
- if(spinning)return;
- const payload=decodeToken(window.__token||"");
- if(!payload?.p){
-   document.getElementById("notice").style.display="block";
-   document.getElementById("spin").disabled=true;
-   if(tg?.openTelegramLink) tg.openTelegramLink("https://t.me/"+BOT_USERNAME+"?start=roulette");
-   else window.location.href="https://t.me/"+BOT_USERNAME+"?start=roulette";
-   return;
- }
- spinning=true;document.getElementById("spin").disabled=true;
- const targetIndex=prizes.findIndex(p=>p.id===payload.p);
- if(targetIndex<0){alert("Приз не найден.");return}
- spinTo(targetIndex);
-});
-window.__token=new URLSearchParams(location.search).get("token")||tg?.initDataUnsafe?.start_param||"";
-window.addEventListener("resize",resize);resize();lockIfAlreadySpun();
+document.getElementById("spin").addEventListener("click",()=>{if(spinning)return;const payload=decodeToken(window.__token||"");if(!payload?.p){document.getElementById("notice").style.display="block";document.getElementById("spin").disabled=true;if(tg?.openTelegramLink)tg.openTelegramLink("https://t.me/"+BOT_USERNAME+"?start=roulette");else window.location.href="https://t.me/"+BOT_USERNAME+"?start=roulette";return}spinning=true;document.getElementById("spin").disabled=true;const targetIndex=prizes.findIndex(p=>p.id===payload.p);if(targetIndex<0){alert("Приз не найден.");return}spinTo(targetIndex)});
+window.__token=new URLSearchParams(location.search).get("token")||tg?.initDataUnsafe?.start_param||"";window.addEventListener("resize",resize);resize();lockIfAlreadySpun();
 </script>
 </body>
 </html>
