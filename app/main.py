@@ -1413,7 +1413,7 @@ async def command_roulette_stats(message: Message):
     if rows:
         lines.append("")
         lines.extend(
-            f"{i}. {title} — <b>{count}</b}"
+            f"{i}. {title} — <b>{count}</b>"
             for i, (_pid, title, count) in enumerate(rows, 1)
         )
     else:
