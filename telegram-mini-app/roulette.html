@@ -107,7 +107,7 @@ document.getElementById("spin").addEventListener("click",()=>{
  if(targetIndex<0){alert("Приз не найден.");return}
  spinTo(targetIndex);
 });
-window.__token=(tg?.initDataUnsafe?.start_param)||"";
+window.__token=new URLSearchParams(location.search).get("token")||tg?.initDataUnsafe?.start_param||"";
 window.addEventListener("resize",resize);resize();
 </script>
 </body>
