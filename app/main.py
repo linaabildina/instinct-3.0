@@ -19,7 +19,7 @@ from aiogram.types import (
 from app.ai import AIEngine
 from app.config import load_settings
 from app.storage import Storage
-from app.roulette import (spun_today, get_pending, save_pending, make_token, verify_token, save_spin, choose_prize_id)
+from app.roulette import (spun_today, get_pending, save_pending, make_token, verify_token, save_spin, choose_prize_id, roulette_stats)
 from app.reminders import ReminderService, parse_command
 from app.knowledge_ui import router as knowledge_router
 from app.source_sync import collect_sources
@@ -461,6 +461,7 @@ _ADMIN_COMMANDS = [
     BotCommand(command="reminders", description="Мои напоминания"),
     BotCommand(command="cancel", description="Отменить напоминание"),
     BotCommand(command="consultant", description="Открыть консультанта"),
+    BotCommand(command="roulette_stats", description="Статистика рулетки"),
 ]
 
 _OFFICER_COMMANDS = [
@@ -1244,10 +1245,6 @@ async def roulette_webapp_result(message: Message):
             f"🎡 РУЛЕТКА: {display_name} — VIP-персона клана на один день. "
             "Алина может учитывать этот статус в общении в течение суток."
         ),
-        "clan_voice": (
-            f"🎡 РУЛЕТКА: {display_name} — «Легенда дня». "
-            "Алина должна учитывать этот статус и может хвалить игрока в чате в течение дня."
-        ),
         "secret_gift": (
             f"🎡 РУЛЕТКА: {display_name} выиграл(а) «Секретный подарок». "
             "Подарок нужно выдать/раскрыть отдельно; считать обязательство невыполненным до раскрытия."
@@ -1256,9 +1253,13 @@ async def roulette_webapp_result(message: Message):
             f"🎡 РУЛЕТКА: {display_name} — «Гений Инстинкта» на 24 часа. "
             "Алина может обращаться к игроку как к Гению Инстинкта и хвалить его в рамках этого статуса."
         ),
-        "exile_right": (
-            f"🎡 РУЛЕТКА: {display_name} получил(а) «Право на изгнание». "
-            "Игрок может выбрать одного участника для шуточного титула на сутки."
+        "boss_loot": (
+            f"🎡 РУЛЕТКА: {display_name} выиграл(а) «Забрать лут с босса КХ 9 этап». "
+            "Условие: присутствовать на КХ на всех этапах."
+        ),
+        "alina_kiss": (
+            f"🎡 РУЛЕТКА: {display_name} выиграл(а) «Поцелуй от Алины». "
+            "Алина обязуется поздравить победителя персонально и максимально пафосно."
         ),
     }
     roulette_memory = memory_by_prize.get(prize.id)
@@ -1273,11 +1274,54 @@ async def roulette_webapp_result(message: Message):
 
     try:
         display_name = message.from_user.full_name or message.from_user.first_name or "Игрок"
+        special_group = {
+            "zero": (
+                f"💀 <b>АЛИНА ВЫНОСИТ ВЕРДИКТ</b>\n\n"
+                f"Игрок <b>{escape(display_name)}</b> крутил судьбу...\n\n"
+                "🕳️ <b>И ПОЛУЧИЛ: НИЧЕГО.</b> 😂\n\n"
+                "Судьба посмотрела на него и сказала: «Сегодня без подарков»."
+            ),
+            "master_dinner": (
+                f"🍖 <b>ВНИМАНИЕ, ГИЛЬДИЯ!</b>\n\n"
+                f"Алина сообщает: <b>{escape(display_name)}</b> выиграл(а)\n"
+                "🍖 <b>УЖИН С МАСТЕРОМ КЛАНА!</b>\n\n"
+                "Мастер обязан провести совместный вечер или активность. "
+                "Мастер не отвертится. 😈"
+            ),
+            "clan_title": (
+                f"👑 <b>РЕДКИЙ ВЫИГРЫШ!</b>\n\n"
+                f"Алина объявляет: <b>{escape(display_name)}</b> получает\n"
+                "👑 <b>УНИКАЛЬНЫЙ КЛАНОВЫЙ ТИТУЛ!</b>\n\n"
+                "Запомните этот ник. Он теперь официально важнее. ⚔️"
+            ),
+            "genius_instinct": (
+                f"🧠 <b>ГИЛЬДИЯ, ВСТАТЬ!</b>\n\n"
+                f"Алина официально объявляет: <b>{escape(display_name)}</b> — "
+                "<b>ГЕНИЙ ИНСТИНКТА</b> на 24 часа. 😏\n\n"
+                "Теперь я буду обращаться к победителю соответствующим образом."
+            ),
+            "boss_loot": (
+                f"🐉 <b>ЛУТ ЗАБРОНИРОВАН!</b>\n\n"
+                f"<b>{escape(display_name)}</b> получает право 1 раз забрать лут "
+                "с босса КХ 9 этап.\n\n"
+                "⚠️ Условие: обязательное присутствие на КХ на всех этапах."
+            ),
+            "alina_kiss": (
+                f"💋 <b>ОЙ-ОЙ...</b>\n\n"
+                f"<b>{escape(display_name)}</b> выиграл(а) <b>ПОЦЕЛУЙ ОТ АЛИНЫ</b>. 😏\n\n"
+                "Алина уже готовит самое пафосное и кринжовое поздравление."
+            ),
+        }
+        group_text = special_group.get(
+            prize.id,
+            f"🎡 <b>Результат рулетки!</b>\n\n"
+            f"Алина объявляет: <b>{escape(display_name)}</b> получил(а): "
+            f"{prize.emoji} <b>{escape(prize.title)}</b>\n\n"
+            f"{prize.description}",
+        )
         await message.bot.send_message(
             settings.group_chat_id,
-            f"🎡 <b>Результат рулетки!</b>\n\n"
-            f"{display_name} получил(а): {prize.emoji} <b>{prize.title}</b>\n\n"
-            f"{prize.description}",
+            group_text,
             message_thread_id=2,
             parse_mode="HTML",
         )
@@ -1287,6 +1331,12 @@ async def roulette_webapp_result(message: Message):
 
 @dp.message(Command('start'))
 async def command_start(message: Message):
+    # Ежедневная кнопка рулетки может открыть персональный запуск сразу.
+    if message.chat.type == "private" and message.text:
+        parts = message.text.split(maxsplit=1)
+        if len(parts) > 1 and parts[1].strip().lower() == "roulette":
+            await command_roulette(message)
+            return
     if not await _is_admin_user(message): return
     storage.set_chat_enabled(message.chat.id, True)
     await message.answer('🟢 Бот запущен. Теперь отвечаю на сообщения.')
@@ -1348,6 +1398,27 @@ async def callback_yt_test_like(callback: CallbackQuery):
             "🧪 Тест не пройден. Не удалось выполнить действие в YouTube. "
             "Проверь Playwright/Chromium и авторизацию аккаунта linaabildina@gmail.com."
         )
+
+
+@dp.message(Command("roulette_stats"))
+async def command_roulette_stats(message: Message):
+    if not await _is_admin_user(message):
+        return
+    total, rows = roulette_stats(settings.db_path, message.chat.id)
+    lines = [
+        "🎡 <b>СТАТИСТИКА РУЛЕТКИ INSTINCT</b>",
+        "",
+        f"Всего вращений: <b>{total}</b>",
+    ]
+    if rows:
+        lines.append("")
+        lines.extend(
+            f"{i}. {title} — <b>{count}</b}"
+            for i, (_pid, title, count) in enumerate(rows, 1)
+        )
+    else:
+        lines.append("\nПока никто не крутил рулетку.")
+    await message.answer("\n".join(lines), parse_mode="HTML")
 
 
 @dp.message(F.text.startswith('/watch'))
@@ -1581,7 +1652,7 @@ async def _roulette_announcement_forever(bot: Bot):
             keyboard = InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(
                     text="🎡 КРУТИТЬ РУЛЕТКУ",
-                    url=f"https://t.me/{me.username}",
+                    url=f"https://t.me/{me.username}?start=roulette",
                 )
             ]])
             await bot.send_message(
