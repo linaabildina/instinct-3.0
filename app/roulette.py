@@ -175,3 +175,20 @@ def save_spin(db_path: str, chat_id: int, user_id: int, username: str | None,
 
 def public_prizes():
     return [{"id": p.id, "title": p.title, "emoji": p.emoji} for p in PRIZES]
+
+
+def roulette_stats(db_path: str, chat_id: int):
+    with _db(db_path) as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM roulette_spins WHERE chat_id=?",
+            (chat_id,),
+        ).fetchone()[0]
+        rows = conn.execute(
+            """SELECT prize_id, prize_title, COUNT(*) AS cnt
+               FROM roulette_spins
+               WHERE chat_id=?
+               GROUP BY prize_id, prize_title
+               ORDER BY cnt DESC""",
+            (chat_id,),
+        ).fetchall()
+    return total, rows
