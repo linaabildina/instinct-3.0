@@ -63,6 +63,7 @@ dp = Dispatcher()
 dp.include_router(knowledge_router)
 
 _bot_id: int | None = None
+_bot_username: str | None = None
 _polling_loop: asyncio.AbstractEventLoop | None = None
 _polling_task: asyncio.Task | None = None
 _knowledge_sync_task: asyncio.Task | None = None
@@ -83,6 +84,23 @@ _NAME_ADDRESS = re.compile(r'(?i)(?<!\w)алин(?:а|е|у|ой|ы)?(?!\w)')
 
 
 def _addressed_to_alina(text: str) -> bool: return bool(_NAME_ADDRESS.search(text))
+
+
+def _mentioned_alina(message: Message) -> bool:
+    """Распознаёт прямое Telegram-упоминание бота (@username/text mention)."""
+    if not message.entities:
+        return False
+    for entity in message.entities:
+        if entity.type == "text_mention" and entity.user and entity.user.id == _bot_id:
+            return True
+        if entity.type == "mention" and _bot_username:
+            try:
+                value = message.parse_entity(entity).lstrip("@").lower()
+            except Exception:
+                value = ""
+            if value == _bot_username.lower():
+                return True
+    return False
 
 
 def _is_knowledge_correction(text: str) -> bool:
@@ -1482,7 +1500,7 @@ async def on_new_chat_members(message: Message):
 
 @dp.message(F.text)
 async def on_message(message: Message):
-    global _bot_id
+    global _bot_id, _bot_username
     if not _is_allowed_chat(message): return
     original_text = (message.text or '').strip()
     if not original_text: return
@@ -1490,6 +1508,10 @@ async def on_message(message: Message):
     if original_text.split()[0].split('@')[0].lower() in {'/start','/stop','/status','/consultant','/roulette','/watch','/watches','/unwatch','/history','/market','/reminders','/cancel','/newbie','/roles','/officer','/unofficer','/officers'}: return
     if not storage.is_chat_enabled(message.chat.id): return
     is_reply_to_alina = bool(message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.id == _bot_id)
+    is_mention_to_alina = _mentioned_alina(message)
+    reply_context = ""
+    if message.reply_to_message and message.reply_to_message.text:
+        reply_context = message.reply_to_message.text.strip()
     display_name = message.from_user.full_name if message.from_user else None
     user_id = message.from_user.id if message.from_user else None
     previous_seen = storage.user_last_seen(message.chat.id, user_id) if user_id else None
@@ -1519,9 +1541,13 @@ async def on_message(message: Message):
         await command_recruiter_list(message)
         return
 
-    if not _addressed_to_alina(original_text) and not is_reply_to_alina: return
+    if not _addressed_to_alina(original_text) and not is_reply_to_alina and not is_mention_to_alina: return
 
+    # Если игрок отвечает на чужое сообщение и в Reply упоминает @instinctbot_bot,
+    # Алина должна понять, что обращаются к ней, и использовать исходное сообщение как контекст.
     text = original_text
+    if is_mention_to_alina and reply_context and not is_reply_to_alina:
+        text = f"Контекст сообщения, на которое ответили:\n{reply_context}\n\nСообщение пользователя:\n{original_text}"
 
     # Вопросы о YouTube-канале обрабатываем отдельно: Алина может
     # проверить реальный статус лайка авторизованного аккаунта.
@@ -1690,6 +1716,7 @@ async def main():
     bot = Bot(settings.telegram_token)
     me = await bot.get_me()
     _bot_id = me.id
+    _bot_username = me.username
     await bot.delete_webhook(drop_pending_updates=False)
     try:
         await bot.set_my_commands([], scope=BotCommandScopeDefault())
