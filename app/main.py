@@ -1162,8 +1162,16 @@ async def command_roulette(message: Message):
         await message.answer("🎡 Рулетка Инстинкта доступна только участникам клана.")
         return
 
-    if spun_today(settings.db_path, settings.group_chat_id, user_id):
-        await message.answer("🎡 Ты уже крутил(а) рулетку. Следующее вращение будет доступно через 24 часа после последнего вращения. 😏")
+    remaining = cooldown_remaining(settings.db_path, settings.group_chat_id, user_id)
+    if remaining > 0:
+        hours, rem = divmod(remaining, 3600)
+        minutes, seconds = divmod(rem, 60)
+        await message.answer(
+            "🎡 <b>Рулетка уже использована.</b>\n\n"
+            f"⏳ Следующее вращение через <b>{hours:02d}:{minutes:02d}:{seconds:02d}</b>.\n\n"
+            "Обновление страницы не сбрасывает таймер — ограничение хранится на сервере. 😏",
+            parse_mode="HTML",
+        )
         return
 
     token = get_pending(settings.db_path, settings.group_chat_id, user_id)
