@@ -38,7 +38,7 @@ body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:-2;back
 <div class="crest">⚔ ✦ 🐉 ✦ ⚔</div>
 <div class="title">Рулетка гильдии <span>Instinct</span></div>
 <div class="subtitle">Ежедневная судьба гильдии</div>
-<div id="player" class="player"></div><div class="statusbar"><div class="status">🎡 <b>1</b> вращение в день</div><div class="status">⚔ <b>Instinct</b> • PW</div></div>
+<div id="player" class="player"></div><div class="statusbar"><div class="status">🎡 <b>1</b> вращение / 24 часа</div><div class="status">⚔ <b>Instinct</b> • PW</div></div>
 <div class="wheelbox"><div class="pointer">▼</div><canvas id="wheel" class="wheel"></canvas><div class="center"></div></div>
 <div class="controls"><button id="spin" class="spin">⚔ КРУТИТЬ РУЛЕТКУ ⚔</button><div id="cooldown" class="cooldown"></div></div>
 <div id="notice" class="notice"></div>
@@ -46,19 +46,35 @@ body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:-2;back
 <div id="modal" class="modal"><div class="card"><div id="modalEmoji" class="big"></div><div id="modalTag" class="tag">НАГРАДА</div><h2 id="modalName"></h2><p id="modalText"></p><button class="ok" id="modalOk">ЗАБРАТЬ НАГРАДУ</button></div></div>
 <script>
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();const BOT_USERNAME="instinctbot_bot";
-const prizes=[{id:"check",t:"1 чек",e:"💸"},{id:"yuan",t:"1 юань",e:"🐉"},{id:"zero",t:"0",e:"🕳️"},{id:"master_dinner",t:"Ужин с Мастером клана",e:"🍖"},{id:"clan_title",t:"Клановый титул",e:"👑"},{id:"clan_list_title",t:"Титул в клан-листе",e:"📜"},{id:"vip_person",t:"VIP-персона клана",e:"🏅"},{id:"secret_gift",t:"Секретный подарок",e:"🎁"},{id:"genius_instinct",t:"Гений Инстинкта",e:"🧠"},{id:"boss_loot",t:"Забрать лут с босса КХ 9 этап",e:"🐉"},{id:"alina_kiss",t:"Поцелуй от Алины",e:"💋"}];
+const prizes=[
+{id:"empty_gift",t:"Пустой подарок",e:"🎁"},
+{id:"golden_air",t:"Золотой воздух",e:"💨"},
+{id:"good_person_certificate",t:"Справка «Я сегодня молодец»",e:"📜"},
+{id:"alina_question_coupon",t:"Купон на вопрос Алине",e:"🎟️"},
+{id:"legendary_potato",t:"Легендарная картошка Инстинкта",e:"🥔"},
+{id:"lucky_sock",t:"Носок абсолютной удачи",e:"🧦"},
+{id:"useless_power_crystal",t:"Кристалл бесполезной мощи",e:"💎"},
+{id:"busy_wand",t:"Палочка «Сделай вид, что я занят»",e:"🪄"},
+{id:"audacity_license",t:"Лицензия на наглость",e:"🪪"},
+{id:"alina_eye",t:"Око Алины",e:"👀"},
+{id:"dragon_scale",t:"Чешуя Дракона",e:"🐉"},
+{id:"favorite_crown",t:"Корона главного любимчика",e:"👑"},
+{id:"alina_brain",t:"Мозг Алины на прокат",e:"🧠"}
+];
 const texts={
-check:"Маленький, но официальный трофей Инстинкта. Чек придёт по почте в течение дня.",
-yuan:"Дракон сегодня решил быть щедрым. 🐉",
-zero:"Судьба посмотрела на тебя и сказала: «Сегодня без подарков». 😂",
-master_dinner:"Мастер обязан провести с победителем совместный вечер или активность. Мастер не отвертится.",
-clan_title:"Ты получаешь уникальный клановый титул от гильдии.",
-clan_list_title:"Специальный титул в клановом списке. Теперь твой ник официально выглядит важнее, чем был пять минут назад.",
-vip_person:"На один день ты становишься VIP-персоной Инстинкта.",
-secret_gift:"Что именно это будет — заранее никто не знает. Подробности объявит Алина или Мастер.",
-genius_instinct:"На 24 часа ты официально становишься Гением Инстинкта. Алина запомнит твой ник.",
-boss_loot:"Право 1 раз забрать лут с босса КХ 9 этап. Обязательное условие — присутствовать на КХ на всех этапах.",
-alina_kiss:"Алина обязуется поздравить победителя самым пафосным и кринжовым способом. 😂"
+empty_gift:"Внутри ничего нет. Алина уверяет, что это очень редкий предмет. 😂",
+golden_air:"Золотой воздух. Дышать можно как обычно. Но он золотой. ✨",
+good_person_certificate:"Официальная справка от Алины: ты сегодня молодец. Оснований нет. Но Алина решила. 😌",
+alina_question_coupon:"Один бесплатный вопрос Алине. Да, спрашивать можно было и без него. Но теперь это официально. 😂",
+legendary_potato:"Легендарный артефакт неизвестного назначения. Никто не знает, зачем она нужна. Но Алина говорит, что это очень важно.",
+lucky_sock:"Носок приносит абсолютную удачу. Второго носка не существует. В этом и заключается его сила.",
+useless_power_crystal:"+999 к понтам и +0 к характеристикам. Редкий, красивый и совершенно бесполезный.",
+busy_wand:"Позволяет убедительно выглядеть занятым, ничего не делая. Алина официально одобряет.",
+audacity_license:"Разрешает быть наглым целых 24 часа. Алина постарается не осуждать. 😈",
+alina_eye:"Алина теперь знает, что ты опять ничего не делаешь. Скрыться невозможно. 😈",
+dragon_scale:"Защищает от критики, здравого смысла и некоторых сомнительных решений. Научно не подтверждено.",
+favorite_crown:"На 24 часа ты официально главный любимчик Алины. Остальным разрешается завидовать.",
+alina_brain:"Легендарный предмет! Алина временно передала тебе 0,5% своего мозга на 24 часа. Вернуть желательно. 😂"
 };
 const canvas=document.getElementById("wheel"),ctx=canvas.getContext("2d"),dpr=devicePixelRatio||1;let size=0,angle=0,spinning=false;
 function resize(){const r=canvas.getBoundingClientRect();size=Math.min(r.width,r.height);canvas.width=size*dpr;canvas.height=size*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);draw()}
@@ -68,14 +84,64 @@ function todayKey(){const d=new Date(Date.now()+5*3600000);return d.getUTCFullYe
 function userKey(){return tg?.initDataUnsafe?.user?.id||"unknown"}
 function spinStorageKey(){return "roulette_last_spin_"+userKey()}
 function lastSpinAt(){try{const v=Number(localStorage.getItem(spinStorageKey())||0);return Number.isFinite(v)?v:0}catch(e){return 0}}
-function countdown(){const last=lastSpinAt(),ms=Math.max(0,last+24*3600000-Date.now());if(!last){document.getElementById("cooldown").textContent="Готово к вращению";return}if(ms<=0){document.getElementById("cooldown").innerHTML="🎡 <b>Вращение доступно!</b>";document.getElementById("spin").disabled=false;document.getElementById("spin").textContent="⚔ КРУТИТЬ РУЛЕТКУ ⚔";return}const h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000);document.getElementById("cooldown").innerHTML="Следующее вращение через: <b>"+String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0")+"</b>";}
+function countdown(){
+  if(spinning)return;
+  const last=lastSpinAt(),ms=Math.max(0,last+24*3600000-Date.now());
+  if(!last){document.getElementById("cooldown").textContent="Готово к вращению";return}
+  if(ms<=0){
+    document.getElementById("cooldown").innerHTML="🎡 <b>Вращение доступно!</b>";
+    document.getElementById("spin").disabled=false;
+    document.getElementById("spin").textContent="⚔ КРУТИТЬ РУЛЕТКУ ⚔";
+    return
+  }
+  const h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000),s=Math.floor(ms%60000/1000);
+  document.getElementById("cooldown").innerHTML="Следующее вращение через: <b>"+String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0")+"</b>";
+}
 function lockIfAlreadySpun(){if(lastSpinAt()+24*3600000>Date.now())lock()}
-function lock(){const b=document.getElementById("spin");b.disabled=true;b.textContent="🔒 ВРАЩЕНИЕ ИСПОЛЬЗОВАНО";document.getElementById("notice").textContent="Следующее вращение будет доступно через 24 часа после последнего вращения.";document.getElementById("notice").style.display="block"}
+function lock(){
+  const b=document.getElementById("spin");b.disabled=true;b.textContent="🔒 ВРАЩЕНИЕ ИСПОЛЬЗОВАНО";
+  document.getElementById("notice").textContent="Ограничение хранится на сервере: обновление страницы или очистка браузера не даст новую прокрутку.";
+  document.getElementById("notice").style.display="block"
+}
 function markSpun(){try{localStorage.setItem(spinStorageKey(),String(Date.now()))}catch(e){}}
 function sparks(){for(let i=0;i<28;i++){const s=document.createElement("i");s.className="spark";s.style.left="50%";s.style.top="50%";s.style.setProperty("--x",(Math.random()*360-180)+"px");s.style.setProperty("--y",(Math.random()*360-180)+"px");document.body.appendChild(s);setTimeout(()=>s.remove(),1100)}}
-function special(index){const id=prizes[index].id;if(id==="zero")document.querySelector(".wheelbox").classList.add("shake");if(id!=="zero")sparks();if(id==="clan_title"||id==="genius_instinct"||id==="boss_loot"||id==="master_dinner")document.getElementById("modalTag").textContent="ОСОБАЯ НАГРАДА";else document.getElementById("modalTag").textContent="НАГРАДА"}
-function showResult(index){const p=prizes[index];markSpun();special(index);document.getElementById("modalEmoji").textContent=p.e;document.getElementById("modalName").textContent=p.t;document.getElementById("modalText").textContent=texts[p.id]||"";document.getElementById("modal").classList.add("show");document.getElementById("spin").disabled=true;document.getElementById("spin").textContent="🔒 ВРАЩЕНИЕ ИСПОЛЬЗОВАНО";if(tg?.sendData)tg.sendData(JSON.stringify({type:"roulette_spin",token:window.__token}))}
-function spinTo(index){const step=Math.PI*2/prizes.length,desired=-(index*step+step/2),current=((angle%(Math.PI*2))+Math.PI*2)%(Math.PI*2);let delta=desired-current;if(delta<0)delta+=Math.PI*2;const start=angle,finish=angle+delta+Math.PI*2*(7+Math.floor(Math.random()*3)),duration=7200,started=performance.now();function frame(now){const p=Math.min(1,(now-started)/duration),e=1-Math.pow(1-p,5);angle=start+(finish-start)*e;draw();if(p<1){requestAnimationFrame(frame);return}angle=finish;draw();showResult(index)}requestAnimationFrame(frame)}
+function special(index){
+  const id=prizes[index].id;
+  if(id==="empty_gift")document.querySelector(".wheelbox").classList.add("shake");
+  else sparks();
+  const rare=["favorite_crown","alina_brain","dragon_scale"];
+  document.getElementById("modalTag").textContent=rare.includes(id)?"ЛЕГЕНДАРНАЯ НАГРАДА":"ПОДАРОК ОТ АЛИНЫ";
+  try{tg?.HapticFeedback?.notificationOccurred(rare.includes(id)?"success":"success")}catch(_){}
+}
+function showResult(index){
+  const p=prizes[index];
+  markSpun();
+  special(index);
+  document.getElementById("modalEmoji").textContent=p.e;
+  document.getElementById("modalName").textContent=p.t;
+  document.getElementById("modalText").textContent=texts[p.id]||"";
+  document.getElementById("modal").classList.add("show");
+  document.getElementById("spin").disabled=true;
+  document.getElementById("spin").textContent="🔒 ВРАЩЕНИЕ ИСПОЛЬЗОВАНО";
+  if(tg?.sendData)tg.sendData(JSON.stringify({type:"roulette_spin",token:window.__token}));
+}
+function spinTo(index){
+  const step=Math.PI*2/prizes.length,desired=-(index*step+step/2),current=((angle%(Math.PI*2))+Math.PI*2)%(Math.PI*2);
+  let delta=desired-current;if(delta<0)delta+=Math.PI*2;
+  const start=angle,finish=angle+delta+Math.PI*2*(6+Math.floor(Math.random()*3)),duration=5000,started=performance.now();
+  const phrases=["👀 Так-так... что же тебе выпадет?","🎲 Алина думает...","😈 Я уже вижу твой приз...","🔮 Судьба решается...","🤨 Подозрительно..."];
+  let phraseIndex=0;
+  const phraseTimer=setInterval(()=>{document.getElementById("cooldown").textContent=phrases[phraseIndex++%phrases.length]},650);
+  try{tg?.HapticFeedback?.impactOccurred("medium")}catch(_){}
+  function frame(now){
+    const p=Math.min(1,(now-started)/duration),e=1-Math.pow(1-p,5);
+    angle=start+(finish-start)*e;draw();
+    if(p<1){requestAnimationFrame(frame);return}
+    clearInterval(phraseTimer);
+    angle=finish;draw();showResult(index)
+  }
+  requestAnimationFrame(frame)
+}
 document.getElementById("modalOk").onclick=()=>document.getElementById("modal").classList.remove("show");
 document.getElementById("spin").addEventListener("click",()=>{if(spinning)return;const payload=decodeToken(window.__token||"");if(!payload?.p){document.getElementById("notice").textContent="Сначала получи персональный запуск у Алины.";document.getElementById("notice").style.display="block";if(tg?.openTelegramLink)tg.openTelegramLink("https://t.me/"+BOT_USERNAME+"?start=roulette");else location.href="https://t.me/"+BOT_USERNAME+"?start=roulette";return}const targetIndex=prizes.findIndex(p=>p.id===payload.p);if(targetIndex<0){alert("Приз не найден.");return}spinning=true;document.getElementById("spin").disabled=true;spinTo(targetIndex)});
 window.__token=new URLSearchParams(location.search).get("token")||tg?.initDataUnsafe?.start_param||"";const u=tg?.initDataUnsafe?.user;if(u)document.getElementById("player").textContent="Игрок: "+(u.first_name||u.username||"герой");window.addEventListener("resize",resize);resize();lockIfAlreadySpun();countdown();setInterval(countdown,1000);
