@@ -224,8 +224,6 @@ async def newbie_restart_callback(callback: CallbackQuery):
 )
 async def direct_alina_ping(message: Message):
     """Быстрый ответ на простые обращения, не зависящий от ИИ."""
-    if not await _is_admin_user(message):
-        return
     await message.answer("Да, я здесь 🙂", reply_to_message_id=message.message_id)
 
 
@@ -1523,7 +1521,7 @@ async def on_new_chat_members(message: Message):
 @dp.message(F.text)
 async def on_message(message: Message):
     global _bot_id
-    if not await _is_admin_user(message): return
+    if not _is_allowed_chat(message): return
     original_text = (message.text or '').strip()
     if not original_text: return
     if _bot_id is not None and message.from_user and message.from_user.id == _bot_id: return
