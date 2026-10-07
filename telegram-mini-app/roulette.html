@@ -100,8 +100,7 @@ function countdown(){
 function lockIfAlreadySpun(){if(lastSpinAt()+24*3600000>Date.now())lock()}
 function lock(){
   const b=document.getElementById("spin");b.disabled=true;b.textContent="🔒 ВРАЩЕНИЕ ИСПОЛЬЗОВАНО";
-  document.getElementById("notice").textContent="Ограничение хранится на сервере: обновление страницы или очистка браузера не даст новую прокрутку.";
-  document.getElementById("notice").style.display="block"
+  document.getElementById("notice").style.display="none"
 }
 function markSpun(){try{localStorage.setItem(spinStorageKey(),String(Date.now()))}catch(e){}}
 function sparks(){for(let i=0;i<28;i++){const s=document.createElement("i");s.className="spark";s.style.left="50%";s.style.top="50%";s.style.setProperty("--x",(Math.random()*360-180)+"px");s.style.setProperty("--y",(Math.random()*360-180)+"px");document.body.appendChild(s);setTimeout(()=>s.remove(),1100)}}
