@@ -19,7 +19,7 @@ from aiogram.types import (
 from app.ai import AIEngine
 from app.config import load_settings
 from app.storage import Storage
-from app.roulette import (spun_today, get_pending, save_pending, make_token, verify_token, save_spin, choose_prize_id, roulette_stats)
+from app.roulette import (spun_today, cooldown_remaining, get_pending, save_pending, make_token, verify_token, save_spin, choose_prize_id, roulette_stats)
 from app.reminders import ReminderService, parse_command
 from app.knowledge_ui import router as knowledge_router
 from app.source_sync import collect_sources
