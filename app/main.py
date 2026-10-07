@@ -1608,11 +1608,11 @@ async def _morning_greeting_forever(bot: Bot):
 
 
 async def _roulette_announcement_forever(bot: Bot):
-    """Каждый день в 10:30 по времени Алматы объявляет новую рулетку."""
+    """Каждый день в 22:00 по времени Алматы смешно предлагает клану прокрутить рулетку."""
     from zoneinfo import ZoneInfo
     while True:
         now = datetime.now(ZoneInfo("Asia/Almaty"))
-        target = now.replace(hour=10, minute=30, second=0, microsecond=0)
+        target = now.replace(hour=22, minute=0, second=0, microsecond=0)
         if now >= target:
             target += timedelta(days=1)
         await asyncio.sleep(max(1, (target - now).total_seconds()))
@@ -1622,15 +1622,18 @@ async def _roulette_announcement_forever(bot: Bot):
                 continue
             keyboard = InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(
-                    text="🎡 КРУТИТЬ РУЛЕТКУ",
+                    text="🎰 КРУТИТЬ РУЛЕТКУ",
                     url=f"https://t.me/{me.username}?start=roulette",
                 )
             ]])
             await bot.send_message(
                 settings.group_chat_id,
-                "🎡 <b>РУЛЕТКА ИНСТИНКТА ОТКРЫТА!</b>\n\n"
-                "Каждому участнику доступно <b>ровно одно вращение сегодня</b>.\n"
-                "Нажми кнопку и узнай, что тебе приготовила судьба. 👀",
+                "🎰 <b>Так, народ…</b>\n\n"
+                "Кто сегодня ещё не испытал судьбу? 😈\n\n"
+                "В рулетке вас ждут легендарная картошка, золотой воздух, "
+                "мозг Алины и прочие жизненно необходимые вещи. 😂\n\n"
+                "<b>Один спин — раз в 24 часа.</b>\n\n"
+                "Кто рискнёт? 👀",
                 message_thread_id=2,
                 reply_markup=keyboard,
                 parse_mode="HTML",
