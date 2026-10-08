@@ -1480,7 +1480,6 @@ async def on_new_chat_members(message: Message):
     )
 
 
-@dp.message(F.text)
 def _is_general_greeting(text: str) -> bool:
     normalized = re.sub(r"[^\w\s@-]", " ", (text or "").lower(), flags=re.UNICODE)
     normalized = re.sub(r"\s+", " ", normalized).strip()
@@ -1496,6 +1495,7 @@ def _is_general_greeting(text: str) -> bool:
     return any(re.fullmatch(pattern, normalized) for pattern in greeting_patterns)
 
 
+@dp.message(F.text)
 async def on_message(message: Message):
     global _bot_id, _bot_username
     if not _is_allowed_chat(message): return
