@@ -19,7 +19,7 @@ from aiogram.types import (
 from app.ai import AIEngine
 from app.config import load_settings
 from app.storage import Storage
-from app.roulette import (spun_today, cooldown_remaining, get_pending, save_pending, make_token, verify_token, save_spin, choose_prize_id, roulette_stats)
+from app.roulette import (spun_today, cooldown_remaining, get_pending, save_pending, make_token, verify_token, save_spin, claim_spin, choose_prize_id, roulette_stats)
 from app.reminders import ReminderService, parse_command
 from app.knowledge_ui import router as knowledge_router
 from app.source_sync import collect_sources
@@ -1218,7 +1218,9 @@ async def roulette_webapp_result(message: Message):
     except Exception:
         await message.answer("🎡 Не удалось прочитать результат рулетки. Попробуй открыть её ещё раз.")
         return
-    if data.get("type") != "roulette_spin":
+
+    data_type = data.get("type")
+    if data_type not in {"roulette_spin", "roulette_claim"}:
         return
 
     user_id = message.from_user.id
@@ -1226,6 +1228,41 @@ async def roulette_webapp_result(message: Message):
     prize = verify_token(message.bot.token, token, user_id)
     if prize is None:
         await message.answer("🎡 Результат рулетки недействителен или уже устарел.")
+        return
+
+    if data_type == "roulette_claim":
+        claimed = claim_spin(settings.db_path, settings.group_chat_id, user_id, prize)
+        if not claimed:
+            await message.answer("🎁 Этот приз уже был получен или опубликован. Повторно получить его нельзя. 😏")
+            return
+
+        display_name = message.from_user.full_name or message.from_user.first_name or "Игрок"
+        special_group = {
+            "empty_gift": f"🎁 <b>АЛИНА СЧИТАЕТ, ЧТО ЭТО ПОДАРОК</b>\n\n<b>{escape(display_name)}</b> получил(а) <b>ПУСТОЙ ПОДАРОК</b>.\n\nВнутри ничего нет. Алина говорит, что он очень редкий. 😂",
+            "golden_air": f"💨 <b>ЗОЛОТОЙ ВОЗДУХ!</b>\n\n<b>{escape(display_name)}</b> получил(а) золотой воздух.\n\nДышать можно как обычно. Но он золотой. ✨",
+            "good_person_certificate": f"📜 <b>ОФИЦИАЛЬНАЯ СПРАВКА АЛИНЫ</b>\n\n<b>{escape(display_name)}</b> сегодня молодец. Оснований нет. Справка есть. 😌",
+            "alina_question_coupon": f"🎟️ <b>КУПОН ОТ АЛИНЫ</b>\n\n<b>{escape(display_name)}</b> получил(а) один бесплатный вопрос Алине. Да, спрашивать можно было и без купона. Но теперь это официально. 😂",
+            "legendary_potato": f"🥔 <b>ЛЕГЕНДАРНАЯ КАРТОШКА!</b>\n\n<b>{escape(display_name)}</b> получил(а) легендарный артефакт неизвестного назначения. Алина уверяет, что это очень важно.",
+            "lucky_sock": f"🧦 <b>НОСОК АБСОЛЮТНОЙ УДАЧИ!</b>\n\n<b>{escape(display_name)}</b> получил(а) носок. Второго носка не существует. В этом и заключается его сила.",
+            "useless_power_crystal": f"💎 <b>КРИСТАЛЛ БЕСПОЛЕЗНОЙ МОЩИ!</b>\n\n<b>{escape(display_name)}</b> получил(а) +999 к понтам и +0 к характеристикам.",
+            "busy_wand": f"🪄 <b>ПАЛОЧКА «СДЕЛАЙ ВИД, ЧТО Я ЗАНЯТ»</b>\n\n<b>{escape(display_name)}</b> теперь может убедительно выглядеть занятым, ничего не делая.",
+            "audacity_license": f"🪪 <b>ЛИЦЕНЗИЯ НА НАГЛОСТЬ</b>\n\n<b>{escape(display_name)}</b> официально разрешено быть наглым 24 часа. Алина постарается не осуждать. 😈",
+            "alina_eye": f"👀 <b>ОКО АЛИНЫ</b>\n\n<b>{escape(display_name)}</b> теперь под наблюдением Алины. Скрыться невозможно. 😈",
+            "dragon_scale": f"🐉 <b>ЧЕШУЯ ДРАКОНА!</b>\n\n<b>{escape(display_name)}</b> получил(а) защиту от критики, здравого смысла и сомнительных решений.",
+            "favorite_crown": f"👑 <b>ГЛАВНЫЙ ЛЮБИМЧИК АЛИНЫ!</b>\n\n<b>{escape(display_name)}</b> становится главным любимчиком Алины на 24 часа. Остальным разрешается завидовать. 😌",
+            "alina_brain": f"🧠 <b>ЛЕГЕНДАРНЫЙ ВЫИГРЫШ!</b>\n\n<b>{escape(display_name)}</b> получил(а) <b>МОЗГ АЛИНЫ НА ПРОКАТ</b> на 24 часа.\n\nАлина: «Верни мне его. Мне ещё работать». 😂",
+        }
+        group_text = special_group.get(
+            prize.id,
+            f"🎡 <b>РЕЗУЛЬТАТ РУЛЕТКИ ИНСТИНКТА</b>\n\n👤 Победитель: <b>{escape(display_name)}</b>\n\n{prize.emoji} <b>{escape(prize.title)}</b>\n\n{prize.description}",
+        )
+        await message.bot.send_message(
+            settings.group_chat_id,
+            group_text,
+            message_thread_id=2,
+            parse_mode="HTML",
+        )
+        await message.answer("🎉 Алина уже поздравила тебя в основном чате клана!")
         return
 
     if spun_today(settings.db_path, settings.group_chat_id, user_id):
@@ -1244,78 +1281,12 @@ async def roulette_webapp_result(message: Message):
         await message.answer("🎡 Это вращение уже было засчитано. Следующее будет доступно через 24 часа.")
         return
 
-    # Результат рулетки становится частью клановой памяти Алины.
-    # Это позволяет учитывать выданные обещания и титулы в будущих сообщениях.
-    display_name = message.from_user.full_name or message.from_user.first_name or "Игрок"
-    memory_by_prize = {
-        "empty_gift": f"🎡 РУЛЕТКА: {display_name} получил(а) «Пустой подарок». Награда шуточная: внутри ничего нет.",
-        "golden_air": f"🎡 РУЛЕТКА: {display_name} получил(а) «Золотой воздух». Награда шуточная.",
-        "good_person_certificate": f"🎡 РУЛЕТКА: {display_name} получил(а) справку «Я сегодня молодец» от Алины.",
-        "alina_question_coupon": f"🎡 РУЛЕТКА: {display_name} получил(а) купон на один бесплатный вопрос Алине.",
-        "legendary_potato": f"🎡 РУЛЕТКА: {display_name} получил(а) «Легендарную картошку Инстинкта».",
-        "lucky_sock": f"🎡 РУЛЕТКА: {display_name} получил(а) «Носок абсолютной удачи».",
-        "useless_power_crystal": f"🎡 РУЛЕТКА: {display_name} получил(а) «Кристалл бесполезной мощи».",
-        "busy_wand": f"🎡 РУЛЕТКА: {display_name} получил(а) палочку «Сделай вид, что я занят».",
-        "audacity_license": f"🎡 РУЛЕТКА: {display_name} получил(а) «Лицензию на наглость» на 24 часа.",
-        "alina_eye": f"🎡 РУЛЕТКА: {display_name} получил(а) «Око Алины». Алина теперь особенно внимательно следит за его/её подвигами.",
-        "dragon_scale": f"🎡 РУЛЕТКА: {display_name} получил(а) «Чешую Дракона».",
-        "favorite_crown": f"🎡 РУЛЕТКА: {display_name} стал(а) главным любимчиком Алины на 24 часа.",
-        "alina_brain": f"🎡 РУЛЕТКА: {display_name} получил(а) «Мозг Алины на прокат» на 24 часа.",
-    }
-    roulette_memory = memory_by_prize.get(prize.id)
-    if roulette_memory:
-        storage.add_clan_memory(settings.group_chat_id, roulette_memory)
-
     await message.answer(
         f"🎉 <b>ТЕБЕ ВЫПАЛО: {prize.emoji} {prize.title.upper()}!</b>\n\n"
-        f"{prize.description}",
+        f"{prize.description}\n\n"
+        "Нажми «ПОЛУЧИТЬ ПРИЗ», чтобы Алина поздравила тебя в основном чате клана.",
         parse_mode="HTML",
     )
-
-    try:
-        display_name = message.from_user.full_name or message.from_user.first_name or "Игрок"
-        special_group = {
-            "empty_gift": f"🎁 <b>АЛИНА СЧИТАЕТ, ЧТО ЭТО ПОДАРОК</b>\n\n<b>{escape(display_name)}</b> получил(а) <b>ПУСТОЙ ПОДАРОК</b>.\n\nВнутри ничего нет. Алина говорит, что он очень редкий. 😂",
-            "golden_air": f"💨 <b>ЗОЛОТОЙ ВОЗДУХ!</b>\n\n<b>{escape(display_name)}</b> получил(а) золотой воздух.\n\nДышать можно как обычно. Но он золотой. ✨",
-            "good_person_certificate": f"📜 <b>ОФИЦИАЛЬНАЯ СПРАВКА АЛИНЫ</b>\n\n<b>{escape(display_name)}</b> сегодня молодец.\n\nОснований нет. Справка есть. 😌",
-            "alina_question_coupon": f"🎟️ <b>КУПОН ОТ АЛИНЫ</b>\n\n<b>{escape(display_name)}</b> получил(а) один бесплатный вопрос Алине.\n\nДа, спрашивать можно было и без купона. Но теперь это официально. 😂",
-            "legendary_potato": f"🥔 <b>ЛЕГЕНДАРНАЯ КАРТОШКА!</b>\n\n<b>{escape(display_name)}</b> получил(а) легендарный артефакт неизвестного назначения.\n\nАлина уверяет, что это очень важно.",
-            "lucky_sock": f"🧦 <b>НОСОК АБСОЛЮТНОЙ УДАЧИ!</b>\n\n<b>{escape(display_name)}</b> получил(а) носок.\n\nВторого носка не существует. В этом и заключается его сила.",
-            "useless_power_crystal": f"💎 <b>КРИСТАЛЛ БЕСПОЛЕЗНОЙ МОЩИ!</b>\n\n<b>{escape(display_name)}</b> получил(а) +999 к понтам и +0 к характеристикам.",
-            "busy_wand": f"🪄 <b>ПАЛОЧКА «СДЕЛАЙ ВИД, ЧТО Я ЗАНЯТ»</b>\n\n<b>{escape(display_name)}</b> теперь может убедительно выглядеть занятым, ничего не делая.",
-            "audacity_license": f"🪪 <b>ЛИЦЕНЗИЯ НА НАГЛОСТЬ</b>\n\n<b>{escape(display_name)}</b> официально разрешено быть наглым 24 часа. Алина постарается не осуждать. 😈",
-            "alina_eye": f"👀 <b>ОКО АЛИНЫ</b>\n\n<b>{escape(display_name)}</b> теперь под наблюдением Алины. Скрыться невозможно. 😈",
-            "dragon_scale": f"🐉 <b>ЧЕШУЯ ДРАКОНА!</b>\n\n<b>{escape(display_name)}</b> получил(а) защиту от критики, здравого смысла и некоторых сомнительных решений.",
-            "favorite_crown": f"👑 <b>ГЛАВНЫЙ ЛЮБИМЧИК АЛИНЫ!</b>\n\n<b>{escape(display_name)}</b> становится главным любимчиком Алины на 24 часа.\n\nОстальным разрешается завидовать. 😌",
-            "alina_brain": f"🧠 <b>ЛЕГЕНДАРНЫЙ ВЫИГРЫШ!</b>\n\n<b>{escape(display_name)}</b> получил(а) <b>МОЗГ АЛИНЫ НА ПРОКАТ</b> на 24 часа.\n\nАлина: «Верни мне его. Мне ещё работать». 😂",
-        }
-
-        group_text = special_group.get(
-            prize.id,
-            f"🎡 <b>РЕЗУЛЬТАТ РУЛЕТКИ ИНСТИНКТА</b>\n\n"
-            f"👤 Победитель: <b>{escape(display_name)}</b>\n\n"
-            f"{prize.emoji} <b>{escape(prize.title)}</b>\n\n"
-            f"{prize.description}",
-        )
-
-        # Красивое объявление в клановой теме. Кнопка ведёт к персональному
-        # запуску рулетки через /start roulette; повторное вращение всё равно
-        # блокируется серверной проверкой до следующего дня.
-        roulette_button = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(
-                text="🎡 КРУТИТЬ РУЛЕТКУ",
-                url=f"https://t.me/{(await message.bot.get_me()).username}?start=roulette",
-            )
-        ]])
-        await message.bot.send_message(
-            settings.group_chat_id,
-            group_text,
-            message_thread_id=2,
-            reply_markup=roulette_button,
-            parse_mode="HTML",
-        )
-    except Exception:
-        logging.exception("Could not announce roulette result")
 
 
 @dp.message(Command('start'))
