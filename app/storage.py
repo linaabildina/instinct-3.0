@@ -176,6 +176,12 @@ class Storage:
                 checked_at TEXT NOT NULL,
                 PRIMARY KEY(chat_id, check_date)
             )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS morning_greeting_days (
+                chat_id INTEGER NOT NULL,
+                greeting_date TEXT NOT NULL,
+                greeted_at TEXT NOT NULL,
+                PRIMARY KEY(chat_id, greeting_date)
+            )""")
             conn.execute("""CREATE TABLE IF NOT EXISTS newbie_drafts (
                 chat_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
@@ -542,6 +548,24 @@ class Storage:
                 return True
             except sqlite3.IntegrityError:
                 return False
+
+    def mark_morning_greeting(self, chat_id: int, greeting_date: str):
+        with self._conn() as conn:
+            try:
+                conn.execute(
+                    "INSERT INTO morning_greeting_days(chat_id,greeting_date,greeted_at) VALUES(?,?,?)",
+                    (chat_id, greeting_date, datetime.now(timezone.utc).isoformat()),
+                )
+                return True
+            except sqlite3.IntegrityError:
+                return False
+
+    def morning_greeting_done(self, chat_id: int, greeting_date: str):
+        with self._conn() as conn:
+            return conn.execute(
+                "SELECT 1 FROM morning_greeting_days WHERE chat_id=? AND greeting_date=?",
+                (chat_id, greeting_date),
+            ).fetchone() is not None
 
     def save_newbie_draft(self, chat_id: int, user_id: int, data: dict):
         with self._conn() as conn:
