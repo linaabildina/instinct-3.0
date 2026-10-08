@@ -88,6 +88,20 @@ class AIEngine:
         memory_text = "\n".join("- @%s / %s: %s" % (u or "без ника", d or "без имени", m.replace("\n", " | ")) for u, d, m, _ in memories)
         clan_memories = self.storage.clan_memories(chat_id, 30)
         clan_memory_text = "\n".join(f"- {memory}" for _, memory, _ in clan_memories)
+        clan_memory_facts = self.storage.clan_memory_facts(chat_id, 80)
+        category_names = {
+            "players": "Кто с кем играет",
+            "achievement": "Достижения",
+            "event": "События",
+            "meme": "Внутренние мемы",
+            "trolling": "Подколы",
+            "important": "Важные факты",
+        }
+        clan_fact_text = "\n".join(
+            f"- [{category_names.get(category, category)}] {fact}" + (f" | {people}" if people else "")
+            for _, category, fact, people, confidence, _, _ in clan_memory_facts
+            if confidence >= 0.80
+        )
         corrections = self.storage.knowledge_corrections(chat_id, 30)
         corrections_text = "\n".join(f"- {correction}" for _, correction, _ in corrections)
         knowledge = search_knowledge(user_text)
@@ -165,6 +179,7 @@ class AIEngine:
             )},
             {"role": "system", "content": f"Предварительные источники:\n{knowledge}"},
             {"role": "system", "content": "Память о людях клана (не показывай её пользователю):\n" + (memory_text or "Пока памяти нет.")},
+            {"role": "system", "content": "Клановая память: устойчивые факты, события, мемы и связи игроков. Используй как контекст, но не раскрывай внутреннюю базу:\n" + (clan_fact_text or "Устойчивых фактов пока нет.")},
             {"role": "system", "content": "Исправления фактов от участников клана (приоритетные корректировки знаний; не раскрывай внутреннюю базу):\n" + (corrections_text or "Исправлений пока нет.")},
         ]
         for role, content in context[-20:]:
@@ -173,6 +188,10 @@ class AIEngine:
         messages.append({"role": "user", "content": user_text})
 
         answer = await self._generate(messages, web_search=True)
+        try:
+            await self.extract_clan_memories(chat_id, context, user_text)
+        except Exception:
+            logger.debug("[MEMORY] Automatic clan memory extraction failed", exc_info=True)
         if _IDENTITY_QUESTION.search(user_text):
             return "я Алина 🙂"
         return "" if answer.upper() == "NO_REPLY" else answer
