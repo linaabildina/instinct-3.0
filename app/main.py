@@ -1538,7 +1538,13 @@ async def on_message(message: Message):
         await command_recruiter_list(message)
         return
 
-    if not _addressed_to_alina(original_text) and not is_reply_to_alina and not is_mention_to_alina: return
+    if (
+        not _addressed_to_alina(original_text)
+        and not is_reply_to_alina
+        and not is_mention_to_alina
+        and not _is_general_greeting(original_text)
+    ):
+        return
 
     # Если игрок отвечает на чужое сообщение и в Reply упоминает @instinctbot_bot,
     # Алина должна понять, что обращаются к ней, и использовать исходное сообщение как контекст.
