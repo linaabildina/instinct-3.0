@@ -82,6 +82,14 @@ def _db(db_path: str):
         created_at TEXT NOT NULL,
         PRIMARY KEY(chat_id, user_id, spin_date)
     )""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS roulette_claims (
+        chat_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        spin_date TEXT NOT NULL,
+        prize_id TEXT NOT NULL,
+        claimed_at TEXT NOT NULL,
+        PRIMARY KEY(chat_id, user_id, spin_date)
+    )""")
     conn.commit()
     return conn
 
@@ -208,3 +216,24 @@ def roulette_stats(db_path: str, chat_id: int):
             (chat_id,),
         ).fetchall()
     return total, rows
+
+
+def claim_spin(db_path: str, chat_id: int, user_id: int, prize: RoulettePrize) -> bool:
+    """Atomically marks the user's current spin prize as claimed."""
+    day = today_key()
+    with _db(db_path) as conn:
+        spin = conn.execute(
+            "SELECT 1 FROM roulette_spins WHERE chat_id=? AND user_id=? AND spin_date=? AND prize_id=?",
+            (chat_id, user_id, day, prize.id),
+        ).fetchone()
+        if not spin:
+            return False
+        try:
+            conn.execute(
+                """INSERT INTO roulette_claims(chat_id,user_id,spin_date,prize_id,claimed_at)
+                   VALUES(?,?,?,?,?)""",
+                (chat_id, user_id, day, prize.id, datetime.now(TZ).isoformat()),
+            )
+            return True
+        except sqlite3.IntegrityError:
+            return False
