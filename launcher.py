@@ -2,7 +2,7 @@
 # main.py imports several modules dynamically from the GUI, so keep explicit
 # imports here to make them visible even when building with "pyinstaller launcher.py".
 from app import storage as _storage
-from app import main as _main
+import app.main as _main
 from app import ai as _ai
 from app import config as _config
 from app import reminders as _reminders
