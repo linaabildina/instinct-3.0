@@ -43,9 +43,10 @@ body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:-2;back
 <div class="controls"><button id="spin" class="spin">⚔ КРУТИТЬ РУЛЕТКУ ⚔</button><div id="cooldown" class="cooldown"></div></div>
 <div id="notice" class="notice"></div>
 </div></div>
-<div id="modal" class="modal"><div class="card"><div id="modalEmoji" class="big"></div><div id="modalTag" class="tag">НАГРАДА</div><h2 id="modalName"></h2><p id="modalText"></p><button class="ok" id="modalOk">ЗАБРАТЬ НАГРАДУ</button></div></div>
+<div id="modal" class="modal"><div class="card"><div id="modalEmoji" class="big"></div><div id="modalTag" class="tag">НАГРАДА</div><h2 id="modalName"></h2><p id="modalText"></p><button class="ok" id="modalOk">ПОЛУЧИТЬ ПРИЗ</button></div></div>
 <script>
 const tg=window.Telegram?.WebApp;tg?.ready();tg?.expand();const BOT_USERNAME="instinctbot_bot";
+const CLAN_CHAT_URL="https://t.me/c/3667294272/2";
 const prizes=[
 {id:"empty_gift",t:"Пустой подарок",e:"🎁"},
 {id:"golden_air",t:"Золотой воздух",e:"💨"},
@@ -122,7 +123,7 @@ function showResult(index){
   document.getElementById("modal").classList.add("show");
   document.getElementById("spin").disabled=true;
   document.getElementById("spin").textContent="🔒 ВРАЩЕНИЕ ИСПОЛЬЗОВАНО";
-  if(tg?.sendData)tg.sendData(JSON.stringify({type:"roulette_spin",token:window.__token}));
+  document.getElementById("modalOk").disabled=false;
 }
 function spinTo(index){
   const step=Math.PI*2/prizes.length,desired=-(index*step+step/2),current=((angle%(Math.PI*2))+Math.PI*2)%(Math.PI*2);
@@ -141,7 +142,21 @@ function spinTo(index){
   }
   requestAnimationFrame(frame)
 }
-document.getElementById("modalOk").onclick=()=>document.getElementById("modal").classList.remove("show");
+document.getElementById("modalOk").onclick=()=>{
+  const b=document.getElementById("modalOk");
+  if(b.disabled)return;
+  b.disabled=true;
+  b.textContent="ПУБЛИКУЕМ…";
+  try{
+    if(tg?.openTelegramLink) tg.openTelegramLink(CLAN_CHAT_URL);
+    else window.open(CLAN_CHAT_URL,"_blank");
+  }catch(_){}
+  setTimeout(()=>{
+    try{
+      if(tg?.sendData) tg.sendData(JSON.stringify({type:"roulette_claim",token:window.__token}));
+    }catch(_){}
+  },180);
+};
 document.getElementById("spin").addEventListener("click",()=>{if(spinning)return;const payload=decodeToken(window.__token||"");if(!payload?.p){document.getElementById("notice").textContent="Сначала получи персональный запуск у Алины.";document.getElementById("notice").style.display="block";if(tg?.openTelegramLink)tg.openTelegramLink("https://t.me/"+BOT_USERNAME+"?start=roulette");else location.href="https://t.me/"+BOT_USERNAME+"?start=roulette";return}const targetIndex=prizes.findIndex(p=>p.id===payload.p);if(targetIndex<0){alert("Приз не найден.");return}spinning=true;document.getElementById("spin").disabled=true;spinTo(targetIndex)});
 window.__token=new URLSearchParams(location.search).get("token")||tg?.initDataUnsafe?.start_param||"";const u=tg?.initDataUnsafe?.user;if(u)document.getElementById("player").textContent="Игрок: "+(u.first_name||u.username||"герой");window.addEventListener("resize",resize);resize();lockIfAlreadySpun();countdown();setInterval(countdown,1000);
 </script>
