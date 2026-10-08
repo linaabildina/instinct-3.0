@@ -1447,6 +1447,17 @@ async def on_new_chat_members(message: Message):
     if not new_members:
         return
 
+    for member in new_members:
+        try:
+            storage.record_clan_join(
+                settings.group_chat_id,
+                member.id,
+                member.username,
+                member.full_name or member.first_name or "Новый игрок",
+            )
+        except Exception:
+            logging.exception("Could not record clan join event")
+
     greetings = [
         "Добро пожаловать, {name}! 👋 Осваивайся, у нас тут весело 😏",
         "О, новенький! {name}, добро пожаловать в клан 👀",
@@ -1640,6 +1651,54 @@ async def _roulette_announcement_forever(bot: Bot):
         except Exception:
             logging.exception("Roulette announcement failed")
 
+async def _daily_recruit_check_forever(bot: Bot):
+    """Раз в сутки проверяет, были ли новые вступления за последние 24 часа."""
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Asia/Almaty")
+    while True:
+        try:
+            now = datetime.now(tz)
+            target = now.replace(hour=20, minute=0, second=0, microsecond=0)
+            if now >= target:
+                target += timedelta(days=1)
+            await asyncio.sleep(max(1, (target - now).total_seconds()))
+
+            check_now = datetime.now(tz)
+            check_date = check_now.date().isoformat()
+            if not storage.daily_join_check_claim(settings.group_chat_id, check_date):
+                continue
+
+            since = check_now - timedelta(hours=24)
+            joins = storage.clan_joins_since(settings.group_chat_id, since)
+            if joins:
+                logging.info("Daily recruit check: %s new clan members.", len(joins))
+                continue
+
+            messages = [
+                "😏 Капитаны, вы там вообще кого-нибудь вербуете?
+За последние сутки — ни одного нового игрока. Клан сам себя расширять, видимо, будет.",
+                "👀 Докладываю обстановку: новых игроков за сутки не обнаружено.
+Капитаны, это что — секретная операция по набору невидимок?",
+                "📢 Капитаны, у меня плохие новости…
+Новых игроков за сутки — 0. Вы там людей в клан зовёте или просто любуетесь списком участников? 😂",
+                "🧐 Проверила приток новичков за сутки.
+Пусто. Тишина. Ни одного нового лица.
+Капитаны, пора просыпаться — я одна клан не расширю! 😈",
+                "🚨 Срочный отчёт Алины: новых игроков за сутки нет.
+Капитаны, похоже, отдел набора ушёл в отпуск без предупреждения. 😂",
+            ]
+            await bot.send_message(
+                settings.group_chat_id,
+                random.choice(messages),
+                message_thread_id=2,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.exception("Daily recruit check failed")
+            await asyncio.sleep(60)
+
+
 
 async def _youtube_forever(bot: Bot):
     loop = asyncio.get_running_loop()
@@ -1682,7 +1741,7 @@ def request_stop():
 
 
 async def main():
-    global _bot_id, _polling_loop, _polling_task, _knowledge_sync_task, _news_monitor_thread, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task, _roulette_task
+    global _bot_id, _polling_loop, _polling_task, _knowledge_sync_task, _news_monitor_thread, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task, _roulette_task, _daily_recruit_check_task
     _polling_loop = asyncio.get_running_loop()
     bot = Bot(settings.telegram_token)
     me = await bot.get_me()
@@ -1700,6 +1759,7 @@ async def main():
     _youtube_task = asyncio.create_task(_youtube_forever(bot))
     _morning_greeting_task = asyncio.create_task(_morning_greeting_forever(bot))
     _roulette_task = asyncio.create_task(_roulette_announcement_forever(bot))
+    _daily_recruit_check_task = asyncio.create_task(_daily_recruit_check_forever(bot))
     if run_news_monitor_in_thread is not None:
         import threading
         _news_monitor_thread = threading.Thread(target=run_news_monitor_in_thread, name='telegram-news-monitor', daemon=True)
@@ -1708,7 +1768,7 @@ async def main():
         _polling_task = asyncio.current_task()
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
-        for task in (_knowledge_sync_task, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task, _roulette_task):
+        for task in (_knowledge_sync_task, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task, _roulette_task, _daily_recruit_check_task):
             if task and not task.done(): task.cancel()
         await bot.session.close()
 
