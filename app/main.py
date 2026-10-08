@@ -1481,6 +1481,21 @@ async def on_new_chat_members(message: Message):
 
 
 @dp.message(F.text)
+def _is_general_greeting(text: str) -> bool:
+    normalized = re.sub(r"[^\w\s@-]", " ", (text or "").lower(), flags=re.UNICODE)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    if not normalized or len(normalized) > 80:
+        return False
+    if re.search(r"@\w+", normalized):
+        return False
+    greeting_patterns = (
+        r"^(привет|прив|здарова|здорово|доброе утро|добрый день|добрый вечер|доброй ночи|"
+        r"доброе утречко|добрый вечерок|всем привет|всем доброе утро|доброе утро всем)"
+        r"(?: всем| народ| клан)?$",
+    )
+    return any(re.fullmatch(pattern, normalized) for pattern in greeting_patterns)
+
+
 async def on_message(message: Message):
     global _bot_id, _bot_username
     if not _is_allowed_chat(message): return
@@ -1566,6 +1581,14 @@ async def on_message(message: Message):
         if not answer: return
         await message.answer(answer, reply_to_message_id=message.message_id)
         storage.add(message.chat.id, None, None, 'assistant', answer)
+        if _is_general_greeting(original_text):
+            try:
+                from zoneinfo import ZoneInfo
+                greeting_now = datetime.now(ZoneInfo("Asia/Almaty"))
+                if greeting_now.hour < 10:
+                    storage.mark_morning_greeting(message.chat.id, greeting_now.date().isoformat())
+            except Exception:
+                logging.exception("Could not mark morning greeting")
 
     except Exception as exc:
         logging.exception('Failed to generate/send answer: %s', exc)
@@ -1599,6 +1622,12 @@ async def _morning_greeting_forever(bot: Bot):
             target += __import__('datetime').timedelta(days=1)
         await asyncio.sleep(max(1, (target - datetime.now().astimezone()).total_seconds()))
         try:
+            from zoneinfo import ZoneInfo
+            greeting_now = datetime.now(ZoneInfo("Asia/Almaty"))
+            greeting_date = greeting_now.date().isoformat()
+            if storage.morning_greeting_done(settings.group_chat_id, greeting_date):
+                continue
+
             greetings = [
                 'Всем привет! ☀️',
                 'Всем доброе утро 😊',
@@ -1607,6 +1636,7 @@ async def _morning_greeting_forever(bot: Bot):
                 'Доброе утро, клан 🌞',
             ]
             await bot.send_message(settings.group_chat_id, random.choice(greetings), message_thread_id=2)
+            storage.mark_morning_greeting(settings.group_chat_id, greeting_date)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
