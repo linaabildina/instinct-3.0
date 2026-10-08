@@ -32,6 +32,19 @@ class Storage:
                 memory TEXT NOT NULL,
                 created_at TEXT NOT NULL
             )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS clan_memory_facts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER NOT NULL,
+                category TEXT NOT NULL,
+                fact TEXT NOT NULL,
+                people TEXT,
+                source_user_id INTEGER,
+                source_username TEXT,
+                confidence REAL NOT NULL DEFAULT 0.8,
+                created_at TEXT NOT NULL,
+                last_confirmed_at TEXT NOT NULL,
+                UNIQUE(chat_id, category, fact)
+            )""")
             conn.execute("""CREATE TABLE IF NOT EXISTS clan_recruit_memory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 chat_id INTEGER NOT NULL,
@@ -278,6 +291,59 @@ class Storage:
         with self._conn() as conn:
             return conn.execute(
                 "SELECT id, memory, created_at FROM clan_memory WHERE chat_id=? ORDER BY id DESC LIMIT ?",
+                (chat_id, limit),
+            ).fetchall()
+
+    def add_clan_memory_fact(
+        self,
+        chat_id: int,
+        category: str,
+        fact: str,
+        people: str | None = None,
+        source_user_id: int | None = None,
+        source_username: str | None = None,
+        confidence: float = 0.8,
+    ):
+        fact = " ".join((fact or "").split()).strip()
+        category = " ".join((category or "").split()).strip().lower()
+        people = " ".join((people or "").split()).strip() or None
+        if not fact or category not in {"players", "achievement", "event", "meme", "trolling", "important"}:
+            return False
+        confidence = max(0.0, min(1.0, float(confidence or 0.8)))
+        now = datetime.now(timezone.utc).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                """SELECT id FROM clan_memory_facts
+                   WHERE chat_id=? AND category=? AND lower(fact)=lower(?)""",
+                (chat_id, category, fact),
+            ).fetchone()
+            if row:
+                conn.execute(
+                    """UPDATE clan_memory_facts
+                       SET people=?, source_user_id=?, source_username=?,
+                           confidence=?, last_confirmed_at=?
+                       WHERE id=?""",
+                    (people, source_user_id, source_username, confidence, now, row[0]),
+                )
+            else:
+                conn.execute(
+                    """INSERT INTO clan_memory_facts(
+                       chat_id, category, fact, people, source_user_id,
+                       source_username, confidence, created_at, last_confirmed_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?)""",
+                    (chat_id, category, fact, people, source_user_id, source_username,
+                     confidence, now, now),
+                )
+        return True
+
+    def clan_memory_facts(self, chat_id: int, limit: int = 80):
+        with self._conn() as conn:
+            return conn.execute(
+                """SELECT id, category, fact, people, confidence, created_at, last_confirmed_at
+                   FROM clan_memory_facts
+                   WHERE chat_id=?
+                   ORDER BY last_confirmed_at DESC, id DESC
+                   LIMIT ?""",
                 (chat_id, limit),
             ).fetchall()
 
