@@ -149,6 +149,20 @@ class Storage:
                     "UPDATE recruits SET class_name = player_class "
                     "WHERE COALESCE(class_name, '') = '' AND player_class IS NOT NULL"
                 )
+            conn.execute("""CREATE TABLE IF NOT EXISTS clan_join_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                username TEXT,
+                display_name TEXT,
+                joined_at TEXT NOT NULL
+            )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS clan_join_daily_checks (
+                chat_id INTEGER NOT NULL,
+                check_date TEXT NOT NULL,
+                checked_at TEXT NOT NULL,
+                PRIMARY KEY(chat_id, check_date)
+            )""")
             conn.execute("""CREATE TABLE IF NOT EXISTS newbie_drafts (
                 chat_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
@@ -430,6 +444,38 @@ class Storage:
                    ORDER BY id DESC LIMIT 1""",
                 (chat_id, game_nickname.strip()),
             ).fetchone()
+
+
+    def record_clan_join(self, chat_id: int, user_id: int, username: str | None, display_name: str | None):
+        if user_id is None:
+            return
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT INTO clan_join_events(chat_id,user_id,username,display_name,joined_at)
+                   VALUES(?,?,?,?,?)""",
+                (chat_id, user_id, username, display_name, datetime.now(timezone.utc).isoformat()),
+            )
+
+    def clan_joins_since(self, chat_id: int, since: datetime):
+        with self._conn() as conn:
+            return conn.execute(
+                """SELECT user_id, username, display_name, joined_at
+                   FROM clan_join_events
+                   WHERE chat_id=? AND joined_at>=?
+                   ORDER BY joined_at ASC""",
+                (chat_id, since.astimezone(timezone.utc).isoformat()),
+            ).fetchall()
+
+    def daily_join_check_claim(self, chat_id: int, check_date: str) -> bool:
+        with self._conn() as conn:
+            try:
+                conn.execute(
+                    "INSERT INTO clan_join_daily_checks(chat_id,check_date,checked_at) VALUES(?,?,?)",
+                    (chat_id, check_date, datetime.now(timezone.utc).isoformat()),
+                )
+                return True
+            except sqlite3.IntegrityError:
+                return False
 
     def save_newbie_draft(self, chat_id: int, user_id: int, data: dict):
         with self._conn() as conn:
