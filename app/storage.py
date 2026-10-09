@@ -210,8 +210,43 @@ class Storage:
             )""")
 
 
+        # Clan memory lives in the user's persistent Windows profile, not beside
+        # the EXE or inside a PyInstaller temporary directory.
+        from app.config import APP_DATA
+        self.clan_db_path = APP_DATA / "clan_memory.sqlite3"
+        self.clan_db_path.parent.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(self.clan_db_path) as clan_conn:
+            clan_conn.execute("""CREATE TABLE IF NOT EXISTS clan_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER NOT NULL,
+                memory TEXT NOT NULL, created_at TEXT NOT NULL
+            )""")
+            clan_conn.execute("""CREATE TABLE IF NOT EXISTS clan_memory_facts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER NOT NULL,
+                category TEXT NOT NULL, fact TEXT NOT NULL, people TEXT,
+                source_user_id INTEGER, source_username TEXT,
+                confidence REAL NOT NULL DEFAULT 0.8, created_at TEXT NOT NULL,
+                last_confirmed_at TEXT NOT NULL, UNIQUE(chat_id, category, fact)
+            )""")
+            clan_conn.execute("""CREATE TABLE IF NOT EXISTS clan_recruit_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, chat_id INTEGER NOT NULL,
+                player_nickname TEXT NOT NULL, player_class TEXT, level TEXT,
+                accepted_by_user_id INTEGER, accepted_by_username TEXT,
+                accepted_by_display_name TEXT, created_at TEXT NOT NULL
+            )""")
+            # Copy existing clan-memory rows from the previous shared database.
+            # INSERT OR IGNORE makes this safe to run on every startup.
+            clan_conn.execute("ATTACH DATABASE ? AS legacy", (str(self.db_path),))
+            for table in ("clan_memory", "clan_memory_facts", "clan_recruit_memory"):
+                clan_conn.execute(f"INSERT OR IGNORE INTO main.{table} SELECT * FROM legacy.{table}")
+            clan_conn.commit()
+            clan_conn.execute("DETACH DATABASE legacy")
+
+
     def _conn(self):
         return sqlite3.connect(self.db_path)
+
+    def _clan_conn(self):
+        return sqlite3.connect(self.clan_db_path)
 
     def add(self, chat_id: int, user_id: int | None, username: str | None, role: str, content: str):
         with self._conn() as conn:
@@ -287,14 +322,14 @@ class Storage:
         memory = memory.strip()
         if not memory:
             return
-        with self._conn() as conn:
+        with self._clan_conn() as conn:
             conn.execute(
                 "INSERT INTO clan_memory(chat_id,memory,created_at) VALUES(?,?,?)",
                 (chat_id, memory[:1000], datetime.now(timezone.utc).isoformat()),
             )
 
     def clan_memories(self, chat_id: int, limit: int = 30):
-        with self._conn() as conn:
+        with self._clan_conn() as conn:
             return conn.execute(
                 "SELECT id, memory, created_at FROM clan_memory WHERE chat_id=? ORDER BY id DESC LIMIT ?",
                 (chat_id, limit),
@@ -317,7 +352,7 @@ class Storage:
             return False
         confidence = max(0.0, min(1.0, float(confidence or 0.8)))
         now = datetime.now(timezone.utc).isoformat()
-        with self._conn() as conn:
+        with self._clan_conn() as conn:
             row = conn.execute(
                 """SELECT id FROM clan_memory_facts
                    WHERE chat_id=? AND category=? AND lower(fact)=lower(?)""",
@@ -343,7 +378,7 @@ class Storage:
         return True
 
     def clan_memory_facts(self, chat_id: int, limit: int = 80):
-        with self._conn() as conn:
+        with self._clan_conn() as conn:
             return conn.execute(
                 """SELECT id, category, fact, people, confidence, created_at, last_confirmed_at
                    FROM clan_memory_facts
@@ -670,7 +705,7 @@ class Storage:
     def add_clan_recruit_memory(self, chat_id: int, player_nickname: str, player_class: str, level: str,
                                 accepted_by_user_id: int | None, accepted_by_username: str | None,
                                 accepted_by_display_name: str | None):
-        with self._conn() as conn:
+        with self._clan_conn() as conn:
             conn.execute(
                 """INSERT INTO clan_recruit_memory(
                     chat_id,player_nickname,player_class,level,
@@ -682,7 +717,7 @@ class Storage:
             )
 
     def clan_recruits_by_player(self, chat_id: int, player_nickname: str):
-        with self._conn() as conn:
+        with self._clan_conn() as conn:
             return conn.execute(
                 """SELECT player_nickname,player_class,level,accepted_by_username,accepted_by_display_name
                    FROM clan_recruit_memory
