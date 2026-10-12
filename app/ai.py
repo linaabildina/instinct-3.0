@@ -101,7 +101,7 @@ class AIEngine:
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": f"Сообщение игрока: {user_text[:1200]}\nЧерновик ответа Алины: {draft_answer[:800]}"},
             ])).strip()
-            match = re.fullmatch(r"(?:ID\\s*[:=]?\\s*)?(\\d+)", raw, re.I)
+            match = re.fullmatch(r"(?:ID\s*[:=]?\s*)?(\d+)", raw, re.I)
             if not match:
                 return None
             selected = int(match.group(1))
