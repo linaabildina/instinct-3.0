@@ -53,6 +53,13 @@ class Storage:
                 if column not in profile_columns:
                     conn.execute(f"ALTER TABLE player_profiles ADD COLUMN {column} {definition}")
 
+            conn.execute("""CREATE TABLE IF NOT EXISTS alina_persona_memory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id INTEGER NOT NULL,
+                memory TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(chat_id, memory)
+            )""")
             conn.execute("""CREATE TABLE IF NOT EXISTS clan_memory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 chat_id INTEGER NOT NULL,
@@ -311,6 +318,30 @@ class Storage:
                 params,
             ).fetchall()
         return list(reversed(rows))
+
+    def total_messages(self, chat_id: int) -> int:
+        with self._conn() as conn:
+            row = conn.execute("SELECT COUNT(*) FROM messages WHERE chat_id=?", (chat_id,)).fetchone()
+        return int(row[0] or 0)
+
+    def add_alina_persona_memory(self, chat_id: int, memory: str) -> None:
+        memory = (memory or "").strip()
+        if not memory or memory.upper() == "NO_REPLY":
+            return
+        now = datetime.now(timezone.utc).isoformat()
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO alina_persona_memory(chat_id,memory,created_at) VALUES(?,?,?)",
+                (chat_id, memory[:1200], now),
+            )
+
+    def alina_persona_memories(self, chat_id: int, limit: int = 50):
+        with self._conn() as conn:
+            return conn.execute(
+                """SELECT memory FROM alina_persona_memory
+                   WHERE chat_id=? ORDER BY id DESC LIMIT ?""",
+                (chat_id, max(1, min(int(limit), 100))),
+            ).fetchall()
 
     def is_chat_enabled(self, chat_id: int) -> bool:
         with self._conn() as conn:
