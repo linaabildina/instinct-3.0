@@ -60,7 +60,6 @@ init_game_features(settings.db_path)
 ai = AIEngine(settings.openai_key, settings.openai_model, settings.system_prompt, storage)
 reminder_service = ReminderService(settings.db_path)
 dp = Dispatcher()
-dp.message.outer_middleware(GroupArchiveMiddleware())
 dp.include_router(knowledge_router)
 
 class GroupArchiveMiddleware(BaseMiddleware):
@@ -91,6 +90,8 @@ class GroupArchiveMiddleware(BaseMiddleware):
             if profile_text:
                 storage.update_player_observation(event.chat.id, event.from_user.id, event.from_user.username, event.from_user.full_name, profile_text)
         return await handler(event, data)
+
+dp.message.outer_middleware(GroupArchiveMiddleware())
 
 
 
