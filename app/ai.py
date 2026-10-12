@@ -182,6 +182,8 @@ class AIEngine:
         )
         corrections = self.storage.knowledge_corrections(chat_id, 30)
         corrections_text = "\n".join(f"- {correction}" for _, correction, _ in corrections)
+        alina_persona_rows = self.storage.alina_persona_memories(chat_id, 50)
+        alina_persona_text = "\n".join(f"- {row[0]}" for row in reversed(alina_persona_rows)) or "Алина пока формирует собственные устойчивые предпочтения."
         # В режиме участника Алине не нужен внешний поиск на каждую реплику.
         # Поиск и игровые справочники подключаются только для адресованных ей вопросов.
         knowledge = "" if player_mode else search_knowledge(user_text)
@@ -282,6 +284,7 @@ class AIEngine:
             {"role": "system", "content": "Память о людях клана (не показывай её пользователю):\n" + (memory_text or "Пока памяти нет.")},
             {"role": "system", "content": "Клановая память: устойчивые факты, события, мемы и связи игроков. Используй как контекст, но не раскрывай внутреннюю базу:\n" + (clan_fact_text or "Устойчивых фактов пока нет.")},
             {"role": "system", "content": "Исправления фактов от участников клана (приоритетные корректировки знаний; не раскрывай внутреннюю базу):\n" + (corrections_text or "Исправлений пока нет.")},
+            {"role": "system", "content": "Личная память Алины — её постепенно сформировавшиеся игровые предпочтения, взгляды и опыт общения. Развивай их последовательно, не меняй мнение ради каждого собеседника и не выдавай вымышленные реальные события за правду:\n" + alina_persona_text},
         ]
         for role, content in context[-20:]:
             if role in {"user", "assistant"}:
@@ -289,6 +292,31 @@ class AIEngine:
         messages.append({"role": "user", "content": user_text})
 
         answer = await self._generate(messages, web_search=not player_mode)
+        # Раз в несколько десятков сообщений фиксируем только устойчивое новое впечатление/предпочтение Алины.
+        # Это отдельная долговременная память, не копирующая профиль конкретного игрока.
+        try:
+            if self.storage.total_messages(chat_id) % 10 == 0 and answer and answer.upper() != "NO_REPLY":
+                persona_prompt = [
+                    {"role": "system", "content": (
+                        "Ты помогаешь Алине постепенно формировать собственную устойчивую игровую личность. "
+                        "По приведённому разговору выбери максимум ОДНО новое долгосрочное предпочтение, мнение, "
+                        "игровой интерес или вывод о том, как ей нравится общаться. Не копируй чужие факты как свои, "
+                        "не записывай разовые эмоции, догадки о реальной биографии и неподтверждённые события. "
+                        "Не меняй уже сохранённые предпочтения без явной причины. Если нового устойчивого вывода нет, "
+                        "верни строго NO_REPLY. Иначе верни одну короткую фразу от третьего лица, начинающуюся с 'Алина:'"
+                    )},
+                    {"role": "user", "content": (
+                        "Уже сформировавшиеся предпочтения Алины:\n" + alina_persona_text
+                        + "\n\nСообщение игрока: " + user_text
+                        + "\nОтвет Алины: " + answer
+                        + "\n\nСформулируй одно устойчивое новое предпочтение или верни NO_REPLY."
+                    )},
+                ]
+                persona_fact = await self._generate(persona_prompt, web_search=False)
+                if persona_fact and persona_fact.upper() != "NO_REPLY":
+                    self.storage.add_alina_persona_memory(chat_id, persona_fact)
+        except Exception:
+            logger.debug("[PERSONA] Alina persona learning failed", exc_info=True)
         try:
             await self.extract_clan_memories(chat_id, context, user_text)
         except Exception:
