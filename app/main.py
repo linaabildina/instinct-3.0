@@ -8,7 +8,7 @@ from html import escape
 from pathlib import Path
 from datetime import datetime, timedelta
 
-from aiogram import Bot, Dispatcher, F
+from aiogram import BaseMiddleware, Bot, Dispatcher, F
 from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     BotCommand, BotCommandScopeChat, BotCommandScopeChatAdministrators,
@@ -60,7 +60,38 @@ init_game_features(settings.db_path)
 ai = AIEngine(settings.openai_key, settings.openai_model, settings.system_prompt, storage)
 reminder_service = ReminderService(settings.db_path)
 dp = Dispatcher()
+dp.message.outer_middleware(GroupArchiveMiddleware())
 dp.include_router(knowledge_router)
+
+class GroupArchiveMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event, data):
+        # Архивируем каждое входящее сообщение участника группы до обработки командами/ответами.
+        if isinstance(event, Message) and event.from_user and event.from_user.id != _bot_id and _is_allowed_chat(event):
+            content = event.text or event.caption
+            if not content:
+                if event.sticker:
+                    content = '[стикер: ' + (event.sticker.emoji or 'без эмодзи') + ']'
+                elif event.photo:
+                    content = '[фото]'
+                elif event.video:
+                    content = '[видео]'
+                elif event.voice:
+                    content = '[голосовое сообщение]'
+                elif event.audio:
+                    content = '[аудио: ' + (event.audio.title or event.audio.file_name or '') + ']'
+                elif event.document:
+                    content = '[файл: ' + (event.document.file_name or '') + ']'
+                elif event.animation:
+                    content = '[GIF]'
+                else:
+                    content = '[сообщение типа ' + str(event.content_type) + ']'
+            storage.add(event.chat.id, event.from_user.id, event.from_user.username, 'user', content)
+            # Подписи к фото/видео тоже пополняют профиль; текстовые сообщения профилируются в on_message.
+            if not event.text and event.caption:
+                storage.update_player_observation(event.chat.id, event.from_user.id, event.from_user.username, event.from_user.full_name, event.caption)
+        return await handler(event, data)
+
+
 
 _bot_id: int | None = None
 _bot_username: str | None = None
@@ -1515,7 +1546,6 @@ async def on_message(message: Message):
     # Сохраняем каждое полученное текстовое сообщение игрока для долгосрочного обучения.
     # Это происходит до проверки команд и включённости ответов Алины.
     if user_id is not None:
-        storage.add(message.chat.id, user_id, username, 'user', original_text)
         storage.remember_user(message.chat.id, user_id, username, display_name, original_text)
         storage.update_player_observation(message.chat.id, user_id, username, display_name, original_text)
 
