@@ -104,7 +104,7 @@ class AIEngine:
     async def decide_and_answer(
         self, chat_id: int, user_text: str, user_id: int | None = None,
         username: str | None = None, display_name: str | None = None,
-        profile_source_text: str | None = None,
+        profile_source_text: str | None = None, player_mode: bool = False,
     ) -> str:
         # Save gender only from strong first-person evidence; names and usernames are not proof.
         if user_id is not None:
@@ -182,20 +182,23 @@ class AIEngine:
         )
         corrections = self.storage.knowledge_corrections(chat_id, 30)
         corrections_text = "\n".join(f"- {correction}" for _, correction, _ in corrections)
-        knowledge = search_knowledge(user_text)
+        # В режиме участника Алине не нужен внешний поиск на каждую реплику.
+        # Поиск и игровые справочники подключаются только для адресованных ей вопросов.
+        knowledge = "" if player_mode else search_knowledge(user_text)
         web_context = ""
         comeback_context = ""
-        try:
-            comeback_context = search_comeback_cats(user_text)
-            if comeback_context:
-                logger.info("[SEARCH] База котов: получено %s chars", len(comeback_context))
-        except Exception as exc:
-            logger.exception("[SEARCH] База котов ERROR: %s", exc)
-        try:
-            web_query = "site:comeback.pw/cats/146/ Perfect World ComebackPW 1.4.6 " + user_text
-            web_context = search_web(web_query, limit=5)
-        except Exception as exc:
-            logger.exception("[SEARCH] Bing ERROR: %s", exc)
+        if not player_mode:
+            try:
+                comeback_context = search_comeback_cats(user_text)
+                if comeback_context:
+                    logger.info("[SEARCH] База котов: получено %s chars", len(comeback_context))
+            except Exception as exc:
+                logger.exception("[SEARCH] База котов ERROR: %s", exc)
+            try:
+                web_query = "site:comeback.pw/cats/146/ Perfect World ComebackPW 1.4.6 " + user_text
+                web_context = search_web(web_query, limit=5)
+            except Exception as exc:
+                logger.exception("[SEARCH] Bing ERROR: %s", exc)
 
         if comeback_context:
             knowledge += "\n\nИсточник №1 — База котов ComebackPW 1.4.6:\n" + comeback_context
@@ -242,14 +245,18 @@ class AIEngine:
                 "Не считай имя или ник подтверждением пола."
             )},
             {"role": "system", "content": (
-                "Изучай клановую переписку как долговременный контекст. Профили ниже накапливаются по сообщениям, "
-                "которые бот получил в группе, а не только по обращениям к тебе. Используй их, чтобы понимать интересы, "
-                "внутренние шутки, отношения, игровой сленг и индивидуальную манеру каждого игрока. "
-                "Подстраивай длину фраз, словарь, темп, юмор и количество эмодзи под атмосферу клана и собеседника, "
-                "но оставайся Алиной — живой, дружелюбной и самостоятельной. Не копируй сообщения дословно "
-                "и не изображай конкретного игрока так, будто ты он. Частые слова — подсказка об интересах, а не доказательство факта. "
-                "Не придумывай биографию и не считай случайную тему устойчивым увлечением; смотри на повторения. "
-                "Не приписывай одному игроку факты, интересы или стиль другого и не раскрывай внутреннюю аналитику профилей.\n\n"
+                "Ты не справочная клановая служба и не автоответчик. Ты Алина — постоянная участница игрового сообщества, "
+                "со своим характером, юмором, вкусами, мнением, привычками и историей отношений с ребятами. "
+                "Твоя задача — жить в разговоре как игрок: иногда самой пошутить, поддержать обсуждение, поспорить по-доброму, "
+                "обсудить игру, отреагировать на победу или фейл, подколоть знакомого в рамках ваших отношений, вспомнить старую историю "
+                "и иногда первой начать уместную тему. Не своди каждое сообщение к помощи и не отвечай канцелярским тоном. "
+                "Ты учишься на всей доступной переписке: запоминай повторяющиеся интересы, мнения, игровые роли, мемы, словечки, "
+                "события и динамику общения; со временем формируй устойчивые собственные предпочтения Алины на основе этого опыта, "
+                "а не просто зеркаль последнего собеседника. У тебя может быть собственное мнение и любимые темы, но не выдумывай "
+                "реальные действия, встречи или игровые достижения, которых не было в переписке. Не копируй игроков дословно и не притворяйся конкретным человеком. "
+                "Уважай границы: не вклинивайся в каждую реплику, не повторяй уже сказанное и не забирай весь разговор на себя. "
+                "Если для текущей реплики нет естественного вклада, верни строго NO_REPLY. В режиме обычного участия предпочитай короткие, живые реплики; "
+                "в режиме прямого обращения отвечай полноценно по вопросу. Не раскрывай внутренние профили и механику памяти.\n\n"
                 "Отвечай сразу по существу. Если вопрос относится к Perfect World/ComebackPW, дай ответ. "
                 "Если сохранённые исправления участников противоречат старому источнику или твоему предыдущему ответу, считай исправление актуальной поправкой и используй его. "
                 "Если пользователь прямо сообщает, что ты ошиблась, не спорь с ним без проверяемых оснований: признай исправление и дальше используй уточнённый факт. "
@@ -281,7 +288,7 @@ class AIEngine:
                 messages.append({"role": role, "content": content})
         messages.append({"role": "user", "content": user_text})
 
-        answer = await self._generate(messages, web_search=True)
+        answer = await self._generate(messages, web_search=not player_mode)
         try:
             await self.extract_clan_memories(chat_id, context, user_text)
         except Exception:
