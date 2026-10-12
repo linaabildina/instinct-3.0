@@ -78,6 +78,46 @@ class AIEngine:
                 self.storage.add_clan_memory_fact(chat_id, category, fact, people=people, confidence=confidence)
         except Exception:
             logger.debug('[MEMORY] Clan memory extraction skipped', exc_info=True)
+    async def extract_player_profile(self, chat_id: int, user_id: int, username: str | None, display_name: str | None, user_text: str, recent_context: list[tuple[str, str]]):
+        """Extract only useful, reasonably supported player facts and merge them into long-term memory."""
+        context = "\\n".join(f"{role}: {content}" for role, content in recent_context[-8:])
+        prompt = (
+            "Ты — аккуратный модуль долговременной памяти игрока в дружеском игровом клане. "
+            "Извлекай только устойчивые сведения, которые сам игрок прямо сообщил или которые явно подтверждены контекстом. "
+            "Не делай выводы о поле, возрасте, месте жительства, здоровье, политике, религии или других чувствительных признаках. "
+            "Не превращай шутки, сарказм, предположения и чужие слова в факты о пользователе. "
+            "Возвращай только JSON-объект с полями interests, personal_facts, communication_style, recurring_topics. "
+            "Каждое поле — короткая строка или пустая строка. Не повторяй уже известное; не добавляй общие слова. "
+            "interests — игровые/обычные интересы; personal_facts — подтверждённые факты и предпочтения; "
+            "communication_style — наблюдаемая манера общения без ярлыков; recurring_topics — повторяющиеся темы. "
+            "Если нечего сохранять, верни все поля пустыми."
+        )
+        try:
+            raw = (await self._generate([
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"Недавний контекст:\\n{context}\\n\\nНовое сообщение игрока:\\n{user_text[:2500]}"},
+            ])).strip()
+            if raw.startswith("```"):
+                raw = "\\n".join(raw.splitlines()[1:-1]).strip()
+            data = json.loads(raw)
+            if not isinstance(data, dict):
+                return
+            values = {
+                key: str(data.get(key) or "").strip()[:300]
+                for key in ("interests", "personal_facts", "communication_style", "recurring_topics")
+            }
+            if any(values.values()):
+                self.storage.learn_player_profile(
+                    chat_id, user_id, username, display_name,
+                    interests=values["interests"],
+                    personal_facts=values["personal_facts"],
+                    communication_style=values["communication_style"],
+                    recurring_topics=values["recurring_topics"],
+                    source_text=user_text,
+                )
+        except Exception:
+            logger.debug("[MEMORY] Player profile extraction skipped", exc_info=True)
+
     async def choose_sticker_id(self, user_text: str, draft_answer: str, stickers: list[dict]) -> int | None:
         """Выбирает стикер по смыслу переписки; None означает, что лучше ответить текстом."""
         if not stickers:
@@ -157,6 +197,15 @@ class AIEngine:
                     1.0 if evidence == "explicit_self_identification" else 0.95,
                     evidence, evidence_text,
                 )
+
+        if user_id is not None and user_text.strip():
+            try:
+                await self.extract_player_profile(
+                    chat_id, user_id, username, display_name, user_text,
+                    self.storage.recent(chat_id),
+                )
+            except Exception:
+                logger.debug("[MEMORY] Player profile learning failed", exc_info=True)
 
         context = self.storage.recent(chat_id)
         recent_dialogue = self.storage.recent_dialogue(chat_id, 20)
