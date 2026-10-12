@@ -151,6 +151,7 @@ class AIEngine:
                 f"- {label} (Telegram ID {profile['user_id']}): пол — {gender_label}; "
                 f"сообщений в профиле: {profile.get('message_count', 0)}; "
                 f"интересы/частые темы: {profile.get('interests') or 'пока не выявлены'}; "
+                f"личные факты и предпочтения: {profile.get('personal_facts') or 'пока не отмечены'}; "
                 f"манера общения: {profile.get('communication_style') or 'пока не выявлена'}; "
                 f"основание пола: {profile.get('evidence') or 'нет подтверждения'}"
             )
