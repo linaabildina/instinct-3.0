@@ -1590,7 +1590,7 @@ async def command_stickers(message: Message):
 async def command_sticker_remove(message: Message):
     if not await _is_admin_user(message):
         return
-    match = re.search(r"^/sticker_remove(?:@\\w+)?\\s+(\\d+)\\s*$", message.text or "", re.I)
+    match = re.search(r"^/sticker_remove(?:@\w+)?\s+(\d+)\s*$", message.text or "", re.I)
     if not match:
         await message.answer("Формат: <code>/sticker_remove ID</code>", parse_mode="HTML")
         return
