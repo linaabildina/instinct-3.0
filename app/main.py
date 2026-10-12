@@ -4,6 +4,7 @@ import sys
 import logging
 import re
 import random
+import time
 from html import escape
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -97,6 +98,7 @@ dp.message.outer_middleware(GroupArchiveMiddleware())
 
 _bot_id: int | None = None
 _bot_username: str | None = None
+_last_alina_social_reply: dict[int, float] = {}
 _polling_loop: asyncio.AbstractEventLoop | None = None
 _polling_task: asyncio.Task | None = None
 _knowledge_sync_task: asyncio.Task | None = None
@@ -1577,13 +1579,22 @@ async def on_message(message: Message):
         await command_recruiter_list(message)
         return
 
-    if (
-        not _addressed_to_alina(original_text)
-        and not is_reply_to_alina
-        and not is_mention_to_alina
-        and not _is_general_greeting(original_text)
-    ):
-        return
+    is_direct_interaction = (
+        _addressed_to_alina(original_text)
+        or is_reply_to_alina
+        or is_mention_to_alina
+        or _is_general_greeting(original_text)
+    )
+    # Алина может сама вступать в разговор как игрок, но не спамит:
+    # редкие органичные реплики и не чаще одной примерно в 75 секунд на группу.
+    player_mode = False
+    if not is_direct_interaction:
+        now_mono = time.monotonic()
+        last_social = _last_alina_social_reply.get(message.chat.id, 0.0)
+        if now_mono - last_social < 75 or random.random() >= 0.22:
+            return
+        _last_alina_social_reply[message.chat.id] = now_mono
+        player_mode = True
 
     # Если игрок отвечает на чужое сообщение и в Reply упоминает @instinctbot_bot,
     # Алина должна понять, что обращаются к ней, и использовать исходное сообщение как контекст.
@@ -1628,6 +1639,7 @@ async def on_message(message: Message):
             username=message.from_user.username if message.from_user else None,
             display_name=display_name,
             profile_source_text=original_text,
+            player_mode=player_mode,
         ))
         if not answer: return
         await message.answer(answer, reply_to_message_id=message.message_id)
