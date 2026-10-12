@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 import sqlite3
 from datetime import datetime, timezone
 
@@ -541,6 +542,42 @@ class Storage:
                  evidence, source_text, now),
             )
         return True
+
+    def learn_player_profile(self, chat_id, user_id, username, display_name, interests="", personal_facts="", communication_style="", recurring_topics="", source_text=""):
+        """Merge extracted long-term facts into a player's profile without erasing old facts."""
+        now = datetime.now(timezone.utc).isoformat()
+        fields = [interests, personal_facts, communication_style, recurring_topics]
+        with self._conn() as conn:
+            conn.execute(
+                """INSERT OR IGNORE INTO player_profiles(
+                    chat_id,user_id,username,display_name,gender,confidence,evidence,source_text,updated_at
+                ) VALUES(?,?,?,?,NULL,0,NULL,'',?)""",
+                (chat_id, user_id, username, display_name, now),
+            )
+            row = conn.execute(
+                """SELECT interests,personal_facts,communication_style,recurring_topics,
+                          message_count,avg_message_length,emoji_count,slang_count
+                   FROM player_profiles WHERE chat_id=? AND user_id=?""",
+                (chat_id, user_id),
+            ).fetchone()
+            merged = []
+            for old_value, new_value in zip(row[:4], fields):
+                items = [x.strip() for x in (old_value or "").split("\n") if x.strip()]
+                candidate = " ".join((new_value or "").split()).strip()
+                if candidate and candidate.lower() not in {x.lower() for x in items}:
+                    items.append(candidate[:300])
+                merged.append("\n".join(items[-30:]))
+            text = (source_text or "").strip()
+            count = int(row[4] or 0) + (1 if text else 0)
+            avg = ((float(row[5] or 0) * int(row[4] or 0) + len(text)) / count) if count else 0
+            emojis = int(row[6] or 0) + len(re.findall(r"[\U0001F300-\U0001FAFF]", text))
+            conn.execute(
+                """UPDATE player_profiles SET username=COALESCE(?,username),
+                   display_name=COALESCE(?,display_name), interests=?,personal_facts=?,
+                   communication_style=?,recurring_topics=?,message_count=?,avg_message_length=?,
+                   emoji_count=?,updated_at=? WHERE chat_id=? AND user_id=?""",
+                (username, display_name, *merged, count, avg, emojis, now, chat_id, user_id),
+            )
 
     def player_profile(self, chat_id: int, user_id: int):
         with self._conn() as conn:
