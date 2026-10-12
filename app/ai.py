@@ -297,8 +297,8 @@ class AIEngine:
             recent_lines.append(f"{author}: {content}")
         messages.append({
             "role": "system",
-            "content": "Последние реплики общего чата. Учитывай, кто именно это сказал, и отвечай как участница разговора, а не как справочник:\\n"
-            + ("\\n".join(recent_lines) if recent_lines else "Недавних реплик нет.")
+            "content": "Последние реплики общего чата. Учитывай, кто именно это сказал, и отвечай как участница разговора, а не как справочник:\n"
+            + ("\n".join(recent_lines) if recent_lines else "Недавних реплик нет.")
         })
         messages.append({"role": "user", "content": user_text})
 
