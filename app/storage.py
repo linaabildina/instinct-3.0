@@ -522,7 +522,7 @@ class Storage:
         with self._conn() as conn:
             rows = conn.execute(
                 """SELECT user_id, username, display_name, gender, confidence, evidence, updated_at,
-                          interests, communication_style, recurring_topics, message_count,
+                          interests, personal_facts, communication_style, recurring_topics, message_count,
                           avg_message_length, emoji_count, slang_count
                    FROM player_profiles WHERE chat_id=?
                    ORDER BY updated_at DESC""",
