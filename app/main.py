@@ -1589,6 +1589,7 @@ async def on_message(message: Message):
             user_id=user_id,
             username=message.from_user.username if message.from_user else None,
             display_name=display_name,
+            profile_source_text=original_text,
         ))
         if not answer: return
         await message.answer(answer, reply_to_message_id=message.message_id)
