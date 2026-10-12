@@ -430,13 +430,13 @@ class Storage:
             # Пол определяем по собственным словам игрока во всех сообщениях, не по имени/нику.
             lowered = " ".join(text.lower().split())
             gender = evidence = None
-            if re.search(r"(?<![а-яё])я\\s+(?:мужчина|мужик|парень)(?![а-яё])", lowered):
+            if re.search(r"(?<![а-яё])я\s+(?:мужчина|мужик|парень)(?![а-яё])", lowered):
                 gender, evidence = "male", "explicit_self_identification"
-            elif re.search(r"(?<![а-яё])я\\s+(?:женщина|девушка)(?![а-яё])", lowered):
+            elif re.search(r"(?<![а-яё])я\s+(?:женщина|девушка)(?![а-яё])", lowered):
                 gender, evidence = "female", "explicit_self_identification"
-            elif re.search(r"\\bя\\s+(?:приш[её]л|сделал|понял|написал|заш[её]л|уш[её]л|родился|готов|устал)\\b", lowered):
+            elif re.search(r"\bя\s+(?:приш[её]л|сделал|понял|написал|заш[её]л|уш[её]л|родился|готов|устал)\b", lowered):
                 gender, evidence = "male", "first_person_grammar"
-            elif re.search(r"\\bя\\s+(?:пришла|сделала|поняла|написала|зашла|ушла|родилась|готова|устала)\\b", lowered):
+            elif re.search(r"\bя\s+(?:пришла|сделала|поняла|написала|зашла|ушла|родилась|готова|устала)\b", lowered):
                 gender, evidence = "female", "first_person_grammar"
             if gender:
                 confidence = 1.0 if evidence == "explicit_self_identification" else 0.95
