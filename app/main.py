@@ -101,7 +101,9 @@ _bot_id: int | None = None
 _bot_username: str | None = None
 _last_alina_social_reply: dict[int, float] = {}
 _last_alina_sticker: dict[int, float] = {}
+_last_alina_sticker_check: dict[int, float] = {}
 ALINA_STICKER_COOLDOWN_SECONDS = 15 * 60
+ALINA_STICKER_CHECK_COOLDOWN_SECONDS = 90
 _polling_loop: asyncio.AbstractEventLoop | None = None
 _polling_task: asyncio.Task | None = None
 _knowledge_sync_task: asyncio.Task | None = None
@@ -1605,9 +1607,13 @@ async def _try_contextual_sticker(message: Message, user_text: str, answer: str)
     now = time.monotonic()
     if now - _last_alina_sticker.get(message.chat.id, 0.0) < ALINA_STICKER_COOLDOWN_SECONDS:
         return False
+    last_check = _last_alina_sticker_check.get(message.chat.id, 0.0)
+    if now - last_check < ALINA_STICKER_CHECK_COOLDOWN_SECONDS:
+        return False
     stickers = get_stickers(settings.db_path)
     if not stickers:
         return False
+    _last_alina_sticker_check[message.chat.id] = now
     options = [
         {"id": sid, "tags": tags, "emoji": emoji or ""}
         for sid, _file_id, tags, emoji in stickers
