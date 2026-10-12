@@ -405,6 +405,29 @@ class Storage:
                 (chat_id, user_id, username, display_name, interests, style, topics_text,
                  count, avg_length, emojis, slang, now),
             )
+            # Пол определяем по собственным словам игрока во всех сообщениях, не по имени/нику.
+            lowered = " ".join(text.lower().split())
+            gender = evidence = None
+            if re.search(r"(?<![а-яё])я\\s+(?:мужчина|мужик|парень)(?![а-яё])", lowered):
+                gender, evidence = "male", "explicit_self_identification"
+            elif re.search(r"(?<![а-яё])я\\s+(?:женщина|девушка)(?![а-яё])", lowered):
+                gender, evidence = "female", "explicit_self_identification"
+            elif re.search(r"\\bя\\s+(?:приш[её]л|сделал|понял|написал|заш[её]л|уш[её]л|родился|готов|устал)\\b", lowered):
+                gender, evidence = "male", "first_person_grammar"
+            elif re.search(r"\\bя\\s+(?:пришла|сделала|поняла|написала|зашла|ушла|родилась|готова|устала)\\b", lowered):
+                gender, evidence = "female", "first_person_grammar"
+            if gender:
+                confidence = 1.0 if evidence == "explicit_self_identification" else 0.95
+                existing = conn.execute(
+                    "SELECT gender, confidence FROM player_profiles WHERE chat_id=? AND user_id=?",
+                    (chat_id, user_id),
+                ).fetchone()
+                if not existing or not existing[0] or existing[0] == gender or confidence > float(existing[1] or 0):
+                    conn.execute(
+                        """UPDATE player_profiles SET gender=?, confidence=?, evidence=?, source_text=?
+                           WHERE chat_id=? AND user_id=?""",
+                        (gender, confidence, evidence, text, chat_id, user_id),
+                    )
 
     def save_player_profile(
         self, chat_id: int, user_id: int, username: str | None,
