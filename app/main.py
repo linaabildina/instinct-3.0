@@ -1502,8 +1502,6 @@ async def on_message(message: Message):
     original_text = (message.text or '').strip()
     if not original_text: return
     if _bot_id is not None and message.from_user and message.from_user.id == _bot_id: return
-    if original_text.split()[0].split('@')[0].lower() in {'/start','/stop','/status','/consultant','/roulette','/watch','/watches','/unwatch','/history','/market','/reminders','/cancel','/newbie','/roles','/officer','/unofficer','/officers'}: return
-    if not storage.is_chat_enabled(message.chat.id): return
     is_reply_to_alina = bool(message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.id == _bot_id)
     is_mention_to_alina = _mentioned_alina(message)
     reply_context = ""
@@ -1511,8 +1509,18 @@ async def on_message(message: Message):
         reply_context = message.reply_to_message.text.strip()
     display_name = message.from_user.full_name if message.from_user else None
     user_id = message.from_user.id if message.from_user else None
+    username = message.from_user.username if message.from_user else None
     previous_seen = storage.user_last_seen(message.chat.id, user_id) if user_id else None
-    storage.remember_user(message.chat.id, user_id, message.from_user.username if message.from_user else None, display_name, original_text)
+
+    # Сохраняем каждое полученное текстовое сообщение игрока для долгосрочного обучения.
+    # Это происходит до проверки команд и включённости ответов Алины.
+    if user_id is not None:
+        storage.add(message.chat.id, user_id, username, 'user', original_text)
+        storage.remember_user(message.chat.id, user_id, username, display_name, original_text)
+        storage.update_player_observation(message.chat.id, user_id, username, display_name, original_text)
+
+    if original_text.split()[0].split('@')[0].lower() in {'/start','/stop','/status','/consultant','/roulette','/watch','/watches','/unwatch','/history','/market','/reminders','/cancel','/newbie','/roles','/officer','/unofficer','/officers'}: return
+    if not storage.is_chat_enabled(message.chat.id): return
 
     # Алина замечает возвращение участника после долгого отсутствия.
     if previous_seen and user_id:
@@ -1581,7 +1589,6 @@ async def on_message(message: Message):
         except Exception as exc:
             logging.debug('Could not add Telegram reaction: %s', exc)
 
-    storage.add(message.chat.id, message.from_user.id if message.from_user else None, message.from_user.username if message.from_user else None, 'user', text)
     try:
         answer = _strip_urls(await ai.decide_and_answer(
             message.chat.id,
