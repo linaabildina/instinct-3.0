@@ -297,6 +297,16 @@ class Storage:
             ).fetchall()
         return list(reversed(rows))
 
+    def recent_dialogue(self, chat_id: int, limit: int = 20):
+        """Return recent group messages with author identity so players are never conflated."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT user_id, username, role, content, created_at
+                   FROM messages WHERE chat_id=? ORDER BY id DESC LIMIT ?""",
+                (chat_id, max(1, min(int(limit), 50))),
+            ).fetchall()
+        return list(reversed(rows))
+
     def relevant_messages(self, chat_id: int, query: str, limit: int = 30):
         """Retrieve matching historical group messages from the full, uncapped archive."""
         import re
