@@ -101,8 +101,47 @@ class AIEngine:
             logger.exception("[TTS] FAILED: model=%s voice=%s", self.tts_model, self.tts_voice)
             raise
 
-    async def decide_and_answer(self, chat_id: int, user_text: str) -> str:
+    async def decide_and_answer(
+        self, chat_id: int, user_text: str, user_id: int | None = None,
+        username: str | None = None, display_name: str | None = None,
+    ) -> str:
+        # Save gender only from strong first-person evidence; names and usernames are not proof.
+        if user_id is not None:
+            lowered = " ".join((user_text or "").lower().split())
+            gender = evidence = None
+            if re.search(r"(?<![а-яё])я\s+(?:мужчина|мужик|парень)(?![а-яё])", lowered):
+                gender, evidence = "male", "explicit_self_identification"
+            elif re.search(r"(?<![а-яё])я\s+(?:женщина|девушка)(?![а-яё])", lowered):
+                gender, evidence = "female", "explicit_self_identification"
+            elif re.search(r"\bя\s+(?:приш[её]л|сделал|понял|написал|заш[её]л|уш[её]л|родился|готов|устал)\b", lowered):
+                gender, evidence = "male", "first_person_grammar"
+            elif re.search(r"\bя\s+(?:пришла|сделала|поняла|написала|зашла|ушла|родилась|готова|устала)\b", lowered):
+                gender, evidence = "female", "first_person_grammar"
+            if gender:
+                self.storage.save_player_profile(
+                    chat_id, user_id, username, display_name, gender, 0.95,
+                    evidence, user_text,
+                )
+
         context = self.storage.recent(chat_id)
+        profiles = self.storage.player_profiles(chat_id)
+        profile_lines = []
+        for profile in profiles:
+            label = profile.get("display_name") or (
+                "@" + profile["username"] if profile.get("username") else f"Telegram ID {profile['user_id']}"
+            )
+            gender_label = "мужчина" if profile["gender"] == "male" else "женщина"
+            profile_lines.append(
+                f"- {label} (Telegram ID {profile['user_id']}): подтверждённый пол — {gender_label}; "
+                f"основание: {profile.get('evidence') or 'подтверждённый контекст'}"
+            )
+        profile_text = "\n".join(profile_lines) or "Подтверждённых профилей пола пока нет; не угадывай."
+        current_profile = self.storage.player_profile(chat_id, user_id) if user_id is not None else None
+        current_gender = (
+            "мужчина" if current_profile and current_profile["gender"] == "male"
+            else "женщина" if current_profile and current_profile["gender"] == "female"
+            else "не установлен"
+        )
         memories = self.storage.user_memories(chat_id)
         memory_text = "\n".join("- @%s / %s: %s" % (u or "без ника", d or "без имени", m.replace("\n", " | ")) for u, d, m, _ in memories)
         clan_memories = self.storage.clan_memories(chat_id, 30)
@@ -175,6 +214,13 @@ class AIEngine:
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "system", "content": player_facts + gender_hint},
+            {"role": "system", "content": (
+                "Сохранённые профили игроков по Telegram ID (применяй только к соответствующему человеку):\n"
+                + profile_text + "\n"
+                + f"Автор текущего сообщения: Telegram ID {user_id}; сохранённый пол: {current_gender}.\n"
+                + "Не переноси пол одного участника на другого. Если профиль не указан, пол неизвестен: не угадывай, используй нейтральную формулировку. "
+                "Не считай имя или ник подтверждением пола."
+            )},
             {"role": "system", "content": (
                 "Отвечай сразу по существу. Если вопрос относится к Perfect World/ComebackPW, дай ответ. "
                 "Если сохранённые исправления участников противоречат старому источнику или твоему предыдущему ответу, считай исправление актуальной поправкой и используй его. "
