@@ -38,6 +38,20 @@ class Storage:
                 updated_at TEXT NOT NULL,
                 PRIMARY KEY (chat_id, user_id)
             )""")
+            # Расширяем профиль игрока без потери данных из старых версий.
+            profile_columns = {row[1] for row in conn.execute("PRAGMA table_info(player_profiles)").fetchall()}
+            for column, definition in {
+                "interests": "TEXT NOT NULL DEFAULT ''",
+                "communication_style": "TEXT NOT NULL DEFAULT ''",
+                "recurring_topics": "TEXT NOT NULL DEFAULT ''",
+                "message_count": "INTEGER NOT NULL DEFAULT 0",
+                "avg_message_length": "REAL NOT NULL DEFAULT 0",
+                "emoji_count": "INTEGER NOT NULL DEFAULT 0",
+                "slang_count": "INTEGER NOT NULL DEFAULT 0",
+            }.items():
+                if column not in profile_columns:
+                    conn.execute(f"ALTER TABLE player_profiles ADD COLUMN {column} {definition}")
+
             conn.execute("""CREATE TABLE IF NOT EXISTS clan_memory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 chat_id INTEGER NOT NULL,
@@ -323,6 +337,75 @@ class Storage:
                 (chat_id, user_id, username, display_name, datetime.now(timezone.utc).isoformat(), "\n".join(history)),
             )
 
+
+    def update_player_observation(
+        self, chat_id: int, user_id: int, username: str | None,
+        display_name: str | None, message: str,
+    ) -> None:
+        """Accumulate a profile from every received group message without a history cap."""
+        import re
+        from collections import Counter
+
+        text = (message or "").strip()
+        if not text:
+            return
+        now = datetime.now(timezone.utc).isoformat()
+        tokens = re.findall(r"[a-zа-яё0-9_]{3,}", text.lower())
+        stopwords = {
+            "это", "как", "что", "там", "тут", "вот", "для", "если", "или", "уже",
+            "ещё", "еще", "просто", "тоже", "очень", "когда", "тогда", "потом",
+            "меня", "тебя", "него", "нее", "они", "она", "оно", "есть", "быть",
+            "будет", "был", "была", "были", "можно", "надо", "почему", "потому",
+            "всем", "всех", "этот", "эта", "эти", "который", "которая", "которые",
+        }
+        topic_counts = Counter(t for t in tokens if t not in stopwords and not t.isdigit())
+        emoji_count = sum(1 for ch in text if 0x1F300 <= ord(ch) <= 0x1FAFF)
+        slang_markers = ("кек", "лол", "имба", "изи", "го", "чел", "челы", "мб", "хз", "крч", "рофл", "пх", "ахах")
+        slang_count = sum(text.lower().count(word) for word in slang_markers)
+        with self._conn() as conn:
+            row = conn.execute(
+                """SELECT recurring_topics, message_count, avg_message_length,
+                          emoji_count, slang_count
+                   FROM player_profiles WHERE chat_id=? AND user_id=?""",
+                (chat_id, user_id),
+            ).fetchone()
+            old_topics, old_count, old_avg, old_emoji, old_slang = row if row else ("", 0, 0, 0, 0)
+            old_topic_counts = Counter()
+            for item in (old_topics or "").splitlines():
+                parts = item.rsplit(":", 1)
+                if len(parts) == 2:
+                    try:
+                        old_topic_counts[parts[0]] = int(parts[1])
+                    except ValueError:
+                        pass
+            old_topic_counts.update(topic_counts)
+            topics_text = "\n".join(f"{word}:{count}" for word, count in old_topic_counts.most_common(100))
+            interests = ", ".join(word for word, _ in old_topic_counts.most_common(25))
+            count = int(old_count or 0) + 1
+            avg_length = ((float(old_avg or 0) * int(old_count or 0)) + len(text)) / count
+            emojis = int(old_emoji or 0) + emoji_count
+            slang = int(old_slang or 0) + slang_count
+            style_bits = [
+                "короткие сообщения" if avg_length < 45 else "сообщения средней длины" if avg_length < 160 else "развёрнутые сообщения",
+                "часто использует эмодзи" if emojis / count >= 0.7 else "редко использует эмодзи",
+                "часто использует игровой сленг" if slang / count >= 0.3 else "игровой сленг встречается редко",
+            ]
+            style = "; ".join(style_bits)
+            conn.execute(
+                """INSERT INTO player_profiles(
+                    chat_id,user_id,username,display_name,interests,communication_style,
+                    recurring_topics,message_count,avg_message_length,emoji_count,slang_count,updated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(chat_id,user_id) DO UPDATE SET
+                    username=excluded.username, display_name=excluded.display_name,
+                    interests=excluded.interests, communication_style=excluded.communication_style,
+                    recurring_topics=excluded.recurring_topics, message_count=excluded.message_count,
+                    avg_message_length=excluded.avg_message_length, emoji_count=excluded.emoji_count,
+                    slang_count=excluded.slang_count, updated_at=excluded.updated_at""",
+                (chat_id, user_id, username, display_name, interests, style, topics_text,
+                 count, avg_length, emojis, slang, now),
+            )
+
     def save_player_profile(
         self, chat_id: int, user_id: int, username: str | None,
         display_name: str | None, gender: str, confidence: float,
@@ -337,7 +420,7 @@ class Storage:
                 "SELECT gender, confidence FROM player_profiles WHERE chat_id=? AND user_id=?",
                 (chat_id, user_id),
             ).fetchone()
-            if row and row[0] != gender and confidence <= float(row[1]):
+            if row and row[0] and row[0] != gender and confidence <= float(row[1]):
                 conn.execute(
                     """UPDATE player_profiles SET username=?, display_name=?, updated_at=?
                        WHERE chat_id=? AND user_id=?""",
@@ -354,14 +437,16 @@ class Storage:
                     evidence=excluded.evidence, source_text=excluded.source_text,
                     updated_at=excluded.updated_at""",
                 (chat_id, user_id, username, display_name, gender, confidence,
-                 evidence[:300], source_text[:1000], now),
+                 evidence, source_text, now),
             )
         return True
 
     def player_profile(self, chat_id: int, user_id: int):
         with self._conn() as conn:
             row = conn.execute(
-                """SELECT user_id, username, display_name, gender, confidence, evidence, updated_at
+                """SELECT user_id, username, display_name, gender, confidence, evidence, updated_at,
+                          interests, communication_style, recurring_topics, message_count,
+                          avg_message_length, emoji_count, slang_count
                    FROM player_profiles WHERE chat_id=? AND user_id=?""",
                 (chat_id, user_id),
             ).fetchone()
@@ -369,20 +454,27 @@ class Storage:
             return None
         return {"user_id": row[0], "username": row[1], "display_name": row[2],
                 "gender": row[3], "confidence": row[4], "evidence": row[5],
-                "updated_at": row[6]}
+                "updated_at": row[6], "interests": row[7], "communication_style": row[8],
+                "recurring_topics": row[9], "message_count": row[10],
+                "avg_message_length": row[11], "emoji_count": row[12], "slang_count": row[13]}
 
-    def player_profiles(self, chat_id: int, limit: int = 200):
+    def player_profiles(self, chat_id: int, limit: int | None = None):
+        """Return every profile in the group; do not impose an artificial player limit."""
         with self._conn() as conn:
             rows = conn.execute(
-                """SELECT user_id, username, display_name, gender, confidence, evidence, updated_at
-                   FROM player_profiles WHERE chat_id=? AND gender IS NOT NULL
-                   ORDER BY updated_at DESC LIMIT ?""",
-                (chat_id, limit),
+                """SELECT user_id, username, display_name, gender, confidence, evidence, updated_at,
+                          interests, communication_style, recurring_topics, message_count,
+                          avg_message_length, emoji_count, slang_count
+                   FROM player_profiles WHERE chat_id=?
+                   ORDER BY updated_at DESC""",
+                (chat_id,),
             ).fetchall()
         return [
             {"user_id": row[0], "username": row[1], "display_name": row[2],
              "gender": row[3], "confidence": row[4], "evidence": row[5],
-             "updated_at": row[6]}
+             "updated_at": row[6], "interests": row[7], "communication_style": row[8],
+             "recurring_topics": row[9], "message_count": row[10],
+             "avg_message_length": row[11], "emoji_count": row[12], "slang_count": row[13]}
             for row in rows
         ]
 
@@ -470,7 +562,7 @@ class Storage:
                 (chat_id, limit),
             ).fetchall()
         return [
-            (username, display_name, "\n".join((messages or "").splitlines()[-10:]), last_seen)
+            (username, display_name, messages or "", last_seen)
             for username, display_name, messages, last_seen in rows
         ]
 
