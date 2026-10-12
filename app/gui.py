@@ -2,6 +2,7 @@ import asyncio
 import os
 import sqlite3
 import shutil
+import json
 import threading
 import tkinter as tk
 from datetime import datetime
@@ -355,7 +356,8 @@ class App(tk.Tk):
         ttk.Button(buttons, text="＋ Добавить запись", command=self._memory_add).pack(side="left", padx=(0, 5))
         ttk.Button(buttons, text="✎ Редактировать", command=self._memory_edit).pack(side="left", padx=5)
         ttk.Button(buttons, text="🗑 Удалить", command=self._memory_delete).pack(side="left", padx=5)
-        ttk.Button(buttons, text="📦 Резервная копия", command=self._memory_backup).pack(side="right")
+        ttk.Button(buttons, text="📜 История изменений", command=self._memory_history).pack(side="right", padx=5)
+        ttk.Button(buttons, text="📦 Резервная копия", command=self._memory_backup).pack(side="right", padx=5)
         self.memory_status = tk.StringVar(value="Выбери базу и таблицу.")
         ttk.Label(parent, textvariable=self.memory_status).pack(anchor="w", pady=(5, 0))
         self._memory_refresh_tables()
@@ -548,6 +550,42 @@ class App(tk.Tk):
             conn.execute(f'DELETE FROM "{table}" WHERE {where}', keys)
             self._memory_audit("DELETE", table, keys, json.dumps(dict(old) if old else row, ensure_ascii=False))
         self._memory_refresh_rows()
+
+    def _memory_history(self):
+        from .config import APP_DATA
+        audit_paths = {
+            os.path.join(os.path.dirname(path), "alina_memory_audit.sqlite3")
+            for path in set(self.memory_db_paths.values())
+        }
+        audit_paths.add(str(APP_DATA / "alina_memory_audit.sqlite3"))
+        win = tk.Toplevel(self)
+        win.title("История изменений памяти")
+        win.geometry("900x480")
+        frame = ttk.Frame(win, padding=10)
+        frame.pack(fill="both", expand=True)
+        tree = ttk.Treeview(frame, columns=("date", "action", "table", "key", "details"), show="headings")
+        for col, label, width in [
+            ("date", "Дата", 160), ("action", "Действие", 90), ("table", "Таблица", 160),
+            ("key", "Ключ записи", 100), ("details", "Подробности", 420)
+        ]:
+            tree.heading(col, text=label)
+            tree.column(col, width=width, stretch=True)
+        tree.pack(fill="both", expand=True)
+        count = 0
+        for path in audit_paths:
+            if not os.path.isfile(path):
+                continue
+            try:
+                with sqlite3.connect(path) as conn:
+                    rows = conn.execute(
+                        "SELECT changed_at, action, table_name, row_key, details FROM changes ORDER BY id DESC LIMIT 500"
+                    ).fetchall()
+                for row in rows:
+                    tree.insert("", "end", values=row)
+                    count += 1
+            except sqlite3.Error:
+                continue
+        ttk.Label(frame, text=f"Операций из журнала панели: {count}").pack(anchor="w", pady=(6, 0))
 
     def _memory_backup(self):
         from .config import APP_DATA, load_settings
