@@ -1560,11 +1560,16 @@ async def command_sticker_add(message: Message):
         replied.sticker.emoji,
         message.from_user.id if message.from_user else None,
     )
-    await message.answer(
-        f"✅ Стикер сохранён для Алины. ID: <code>{sticker_id}</code>\n"
-        f"Теги: {tags or 'универсальная реакция'}",
-        parse_mode="HTML",
-    )
+    # Стикер сохранён. Убираем из чата исходный стикер и команду,
+    # чтобы процесс добавления не засорял переписку.
+    for item in (message, replied):
+        try:
+            await item.delete()
+        except Exception as exc:
+            logging.warning(
+                "[STICKER] Не удалось удалить сообщение %s: %s",
+                getattr(item, "message_id", "?"), exc,
+            )
 
 
 @dp.message(Command("stickers"))
