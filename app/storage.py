@@ -289,6 +289,28 @@ class Storage:
             ).fetchall()
         return list(reversed(rows))
 
+    def relevant_messages(self, chat_id: int, query: str, limit: int = 30):
+        """Retrieve matching historical group messages from the full, uncapped archive."""
+        import re
+        words = []
+        for word in re.findall(r"[a-zа-яё0-9_]{3,}", (query or "").lower()):
+            if word not in words:
+                words.append(word)
+            if len(words) >= 8:
+                break
+        if not words:
+            return []
+        conditions = " OR ".join("LOWER(content) LIKE ?" for _ in words)
+        params = [chat_id] + [f"%{word}%" for word in words] + [max(1, min(int(limit), 50))]
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""SELECT user_id, username, role, content, created_at
+                    FROM messages WHERE chat_id=? AND ({conditions})
+                    ORDER BY id DESC LIMIT ?""",
+                params,
+            ).fetchall()
+        return list(reversed(rows))
+
     def is_chat_enabled(self, chat_id: int) -> bool:
         with self._conn() as conn:
             row = conn.execute(
