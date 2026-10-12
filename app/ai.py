@@ -127,6 +127,7 @@ class AIEngine:
                 )
 
         context = self.storage.recent(chat_id)
+        recent_dialogue = self.storage.recent_dialogue(chat_id, 20)
         historical = self.storage.relevant_messages(chat_id, user_text, limit=30)
         historical_lines = []
         for author_id, author_username, role, content, created_at in historical:
@@ -286,9 +287,19 @@ class AIEngine:
             {"role": "system", "content": "Исправления фактов от участников клана (приоритетные корректировки знаний; не раскрывай внутреннюю базу):\n" + (corrections_text or "Исправлений пока нет.")},
             {"role": "system", "content": "Личная память Алины — её постепенно сформировавшиеся игровые предпочтения, взгляды и опыт общения. Развивай их последовательно, не меняй мнение ради каждого собеседника и не выдавай вымышленные реальные события за правду:\n" + alina_persona_text},
         ]
-        for role, content in context[-20:]:
-            if role in {"user", "assistant"}:
-                messages.append({"role": role, "content": content})
+        recent_lines = []
+        for author_id, author_username, role, content, created_at in recent_dialogue:
+            if role == "user" and author_id == user_id and content == user_text:
+                continue  # Текущее сообщение передаём ниже отдельно, не дублируем.
+            author = "Алина" if role == "assistant" else (
+                "@" + author_username if author_username else f"игрок {author_id}"
+            )
+            recent_lines.append(f"{author}: {content}")
+        messages.append({
+            "role": "system",
+            "content": "Последние реплики общего чата. Учитывай, кто именно это сказал, и отвечай как участница разговора, а не как справочник:\\n"
+            + ("\\n".join(recent_lines) if recent_lines else "Недавних реплик нет.")
+        })
         messages.append({"role": "user", "content": user_text})
 
         answer = await self._generate(messages, web_search=not player_mode)
