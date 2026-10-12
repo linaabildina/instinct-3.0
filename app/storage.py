@@ -428,8 +428,8 @@ class Storage:
                  count, avg_length, emojis, slang, now),
             )
             # Сохраняем явные самоописания и предпочтения из сообщений игрока.
-            fact_pattern = r'(?:мне нравится|мне нравятся|люблю|обожаю|интересуюсь|увлекаюсь|не люблю|ненавижу|мне интересно|мой класс|я играю за|работаю|учусь|живу в|у меня есть)[^.!?\\n]{0,220}'
-            found_facts = [x.strip(' \\t-—,:;') for x in re.findall(fact_pattern, text, flags=re.IGNORECASE)]
+            fact_pattern = r'(?:мне нравится|мне нравятся|люблю|обожаю|интересуюсь|увлекаюсь|не люблю|ненавижу|мне интересно|мой класс|я играю за|работаю|учусь|живу в|у меня есть)[^.!?\n]{0,220}'
+            found_facts = [x.strip(' \t-—,:;') for x in re.findall(fact_pattern, text, flags=re.IGNORECASE)]
             saved_facts = [x for x in (old_facts or '').splitlines() if x]
             known_facts = {x.lower() for x in saved_facts}
             for fact in found_facts:
@@ -439,7 +439,7 @@ class Storage:
             if found_facts:
                 conn.execute(
                     'UPDATE player_profiles SET personal_facts=? WHERE chat_id=? AND user_id=?',
-                    ('\\n'.join(saved_facts), chat_id, user_id),
+                    ('\n'.join(saved_facts), chat_id, user_id),
                 )
             # Пол определяем по собственным словам игрока во всех сообщениях, не по имени/нику.
             lowered = " ".join(text.lower().split())
