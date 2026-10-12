@@ -30,6 +30,7 @@ from app.youtube_monitor import monitor_forever, _latest_video
 from app.youtube_browser import like_video, get_video_rating
 from app.roles import RoleManager, is_telegram_admin
 from app.google_newbie import send_newbie_to_google, test_google_newbie, get_google_config_status
+from app.stickers import add_sticker, list_stickers, get_stickers, remove_sticker
 try:
     from app.news_monitor import run_news_monitor_in_thread
 except ImportError:
@@ -99,6 +100,8 @@ dp.message.outer_middleware(GroupArchiveMiddleware())
 _bot_id: int | None = None
 _bot_username: str | None = None
 _last_alina_social_reply: dict[int, float] = {}
+_last_alina_sticker: dict[int, float] = {}
+ALINA_STICKER_COOLDOWN_SECONDS = 15 * 60
 _polling_loop: asyncio.AbstractEventLoop | None = None
 _polling_task: asyncio.Task | None = None
 _knowledge_sync_task: asyncio.Task | None = None
@@ -513,6 +516,9 @@ _ADMIN_COMMANDS = [
     BotCommand(command="cancel", description="Отменить напоминание"),
     BotCommand(command="consultant", description="Открыть консультанта"),
     BotCommand(command="roulette_stats", description="Статистика рулетки"),
+    BotCommand(command="sticker_add", description="Добавить стикер Алины"),
+    BotCommand(command="stickers", description="Список стикеров Алины"),
+    BotCommand(command="sticker_remove", description="Удалить стикер Алины"),
 ]
 
 _OFFICER_COMMANDS = [
@@ -1530,6 +1536,101 @@ def _is_general_greeting(text: str) -> bool:
     return any(re.fullmatch(pattern, normalized) for pattern in greeting_patterns)
 
 
+
+@dp.message(Command("sticker_add"))
+async def command_sticker_add(message: Message):
+    """Добавить стикер в личную коллекцию Алины ответом на стикер."""
+    if not await _is_admin_user(message):
+        return
+    replied = message.reply_to_message
+    if not replied or not replied.sticker:
+        await message.answer(
+            "Ответь командой <code>/sticker_add смех, победа, подкол</code> "
+            "на сообщение со стикером. Теги укажи через запятую.",
+            parse_mode="HTML",
+        )
+        return
+    tags = (message.text or "").partition(" ")[2].strip()
+    sticker_id = add_sticker(
+        settings.db_path,
+        replied.sticker.file_id,
+        tags,
+        replied.sticker.emoji,
+        message.from_user.id if message.from_user else None,
+    )
+    await message.answer(
+        f"✅ Стикер сохранён для Алины. ID: <code>{sticker_id}</code>\n"
+        f"Теги: {tags or 'универсальная реакция'}",
+        parse_mode="HTML",
+    )
+
+
+@dp.message(Command("stickers"))
+async def command_stickers(message: Message):
+    if not await _is_admin_user(message):
+        return
+    rows = list_stickers(settings.db_path)
+    if not rows:
+        await message.answer(
+            "Коллекция стикеров пока пуста. Пришли стикер и ответь на него командой "
+            "<code>/sticker_add смех, победа</code>.",
+            parse_mode="HTML",
+        )
+        return
+    lines = ["🎭 <b>Стикеры Алины</b>", ""]
+    lines.extend(
+        f"{sid}. {emoji or '🎭'} — {tags}"
+        for sid, tags, emoji in rows
+    )
+    lines.append("\nУдалить: <code>/sticker_remove ID</code>")
+    await message.answer("\n".join(lines), parse_mode="HTML")
+
+
+@dp.message(Command("sticker_remove"))
+async def command_sticker_remove(message: Message):
+    if not await _is_admin_user(message):
+        return
+    match = re.search(r"^/sticker_remove(?:@\\w+)?\\s+(\\d+)\\s*$", message.text or "", re.I)
+    if not match:
+        await message.answer("Формат: <code>/sticker_remove ID</code>", parse_mode="HTML")
+        return
+    ok = remove_sticker(settings.db_path, int(match.group(1)))
+    await message.answer("🗑 Стикер удалён." if ok else "Не нашла стикер с таким ID.")
+
+
+async def _try_contextual_sticker(message: Message, user_text: str, answer: str) -> bool:
+    """Попросить ИИ выбрать стикер по смыслу; при любой ошибке оставить обычный ответ."""
+    if not message.chat or not message.from_user or not answer:
+        return False
+    now = time.monotonic()
+    if now - _last_alina_sticker.get(message.chat.id, 0.0) < ALINA_STICKER_COOLDOWN_SECONDS:
+        return False
+    stickers = get_stickers(settings.db_path)
+    if not stickers:
+        return False
+    options = [
+        {"id": sid, "tags": tags, "emoji": emoji or ""}
+        for sid, _file_id, tags, emoji in stickers
+    ]
+    try:
+        selected_id = await ai.choose_sticker_id(user_text, answer, options)
+        selected = next((row for row in stickers if row[0] == selected_id), None)
+        if not selected:
+            return False
+        await message.bot.send_sticker(
+            chat_id=message.chat.id,
+            sticker=selected[1],
+            reply_to_message_id=message.message_id,
+        )
+        _last_alina_sticker[message.chat.id] = time.monotonic()
+        storage.add(message.chat.id, None, None, "assistant", f"[стикер Алины: {selected[2]}]")
+        logging.info("[STICKER] Sent contextual sticker id=%s tags=%s", selected[0], selected[2])
+        return True
+    except Exception:
+        logging.exception("[STICKER] Contextual selection failed; sending text reply")
+        return False
+
+
 @dp.message(F.text)
 async def on_message(message: Message):
     global _bot_id, _bot_username
@@ -1552,7 +1653,7 @@ async def on_message(message: Message):
     if user_id is not None:
         storage.remember_user(message.chat.id, user_id, username, display_name, original_text)
 
-    if original_text.split()[0].split('@')[0].lower() in {'/start','/stop','/status','/consultant','/roulette','/watch','/watches','/unwatch','/history','/market','/reminders','/cancel','/newbie','/roles','/officer','/unofficer','/officers'}: return
+    if original_text.split()[0].split('@')[0].lower() in {'/start','/stop','/status','/consultant','/roulette','/watch','/watches','/unwatch','/history','/market','/reminders','/cancel','/newbie','/roles','/officer','/unofficer','/officers','/sticker_add','/stickers','/sticker_remove'}: return
     if not storage.is_chat_enabled(message.chat.id): return
 
     # Возвращение после долгого отсутствия не вызывает автоматическое приветствие.
@@ -1627,6 +1728,12 @@ async def on_message(message: Message):
         if player_mode and social_cooldown_active:
             answer = ""
         if not answer: return
+        # Стикер заменяет текстовый ответ только тогда, когда ИИ считает его уместным.
+        # Коллекция пуста или выбор не удался — отправляем исходный текст как обычно.
+        if await _try_contextual_sticker(message, text, answer):
+            if player_mode:
+                _last_alina_social_reply[message.chat.id] = time.monotonic()
+            return
         await message.answer(answer, reply_to_message_id=message.message_id)
         if player_mode:
             _last_alina_social_reply[message.chat.id] = time.monotonic()
