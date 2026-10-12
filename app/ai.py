@@ -104,10 +104,12 @@ class AIEngine:
     async def decide_and_answer(
         self, chat_id: int, user_text: str, user_id: int | None = None,
         username: str | None = None, display_name: str | None = None,
+        profile_source_text: str | None = None,
     ) -> str:
         # Save gender only from strong first-person evidence; names and usernames are not proof.
         if user_id is not None:
-            lowered = " ".join((user_text or "").lower().split())
+            evidence_text = profile_source_text if profile_source_text is not None else user_text
+            lowered = " ".join((evidence_text or "").lower().split())
             gender = evidence = None
             if re.search(r"(?<![а-яё])я\s+(?:мужчина|мужик|парень)(?![а-яё])", lowered):
                 gender, evidence = "male", "explicit_self_identification"
@@ -119,8 +121,9 @@ class AIEngine:
                 gender, evidence = "female", "first_person_grammar"
             if gender:
                 self.storage.save_player_profile(
-                    chat_id, user_id, username, display_name, gender, 0.95,
-                    evidence, user_text,
+                    chat_id, user_id, username, display_name, gender,
+                    1.0 if evidence == "explicit_self_identification" else 0.95,
+                    evidence, evidence_text,
                 )
 
         context = self.storage.recent(chat_id)
