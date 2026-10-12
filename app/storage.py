@@ -387,11 +387,11 @@ class Storage:
         with self._conn() as conn:
             row = conn.execute(
                 """SELECT recurring_topics, message_count, avg_message_length,
-                          emoji_count, slang_count
+                          emoji_count, slang_count, personal_facts
                    FROM player_profiles WHERE chat_id=? AND user_id=?""",
                 (chat_id, user_id),
             ).fetchone()
-            old_topics, old_count, old_avg, old_emoji, old_slang = row if row else ("", 0, 0, 0, 0)
+            old_topics, old_count, old_avg, old_emoji, old_slang, old_facts = row if row else ("", 0, 0, 0, 0, "")
             old_topic_counts = Counter()
             for item in (old_topics or "").splitlines():
                 parts = item.rsplit(":", 1)
@@ -427,6 +427,20 @@ class Storage:
                 (chat_id, user_id, username, display_name, interests, style, topics_text,
                  count, avg_length, emojis, slang, now),
             )
+            # Сохраняем явные самоописания и предпочтения из сообщений игрока.
+            fact_pattern = r'(?:мне нравится|мне нравятся|люблю|обожаю|интересуюсь|увлекаюсь|не люблю|ненавижу|мне интересно|мой класс|я играю за|работаю|учусь|живу в|у меня есть)[^.!?\\n]{0,220}'
+            found_facts = [x.strip(' \\t-—,:;') for x in re.findall(fact_pattern, text, flags=re.IGNORECASE)]
+            saved_facts = [x for x in (old_facts or '').splitlines() if x]
+            known_facts = {x.lower() for x in saved_facts}
+            for fact in found_facts:
+                if fact and fact.lower() not in known_facts:
+                    saved_facts.append(fact)
+                    known_facts.add(fact.lower())
+            if found_facts:
+                conn.execute(
+                    'UPDATE player_profiles SET personal_facts=? WHERE chat_id=? AND user_id=?',
+                    ('\\n'.join(saved_facts), chat_id, user_id),
+                )
             # Пол определяем по собственным словам игрока во всех сообщениях, не по имени/нику.
             lowered = " ".join(text.lower().split())
             gender = evidence = None
@@ -490,7 +504,7 @@ class Storage:
         with self._conn() as conn:
             row = conn.execute(
                 """SELECT user_id, username, display_name, gender, confidence, evidence, updated_at,
-                          interests, communication_style, recurring_topics, message_count,
+                          interests, personal_facts, communication_style, recurring_topics, message_count,
                           avg_message_length, emoji_count, slang_count
                    FROM player_profiles WHERE chat_id=? AND user_id=?""",
                 (chat_id, user_id),
@@ -499,9 +513,9 @@ class Storage:
             return None
         return {"user_id": row[0], "username": row[1], "display_name": row[2],
                 "gender": row[3], "confidence": row[4], "evidence": row[5],
-                "updated_at": row[6], "interests": row[7], "communication_style": row[8],
-                "recurring_topics": row[9], "message_count": row[10],
-                "avg_message_length": row[11], "emoji_count": row[12], "slang_count": row[13]}
+                "updated_at": row[6], "interests": row[7], "personal_facts": row[8],
+                "communication_style": row[9], "recurring_topics": row[10], "message_count": row[11],
+                "avg_message_length": row[12], "emoji_count": row[13], "slang_count": row[14]}
 
     def player_profiles(self, chat_id: int, limit: int | None = None):
         """Return every profile in the group; do not impose an artificial player limit."""
@@ -517,9 +531,9 @@ class Storage:
         return [
             {"user_id": row[0], "username": row[1], "display_name": row[2],
              "gender": row[3], "confidence": row[4], "evidence": row[5],
-             "updated_at": row[6], "interests": row[7], "communication_style": row[8],
-             "recurring_topics": row[9], "message_count": row[10],
-             "avg_message_length": row[11], "emoji_count": row[12], "slang_count": row[13]}
+             "updated_at": row[6], "interests": row[7], "personal_facts": row[8],
+             "communication_style": row[9], "recurring_topics": row[10], "message_count": row[11],
+             "avg_message_length": row[12], "emoji_count": row[13], "slang_count": row[14]}
             for row in rows
         ]
 
