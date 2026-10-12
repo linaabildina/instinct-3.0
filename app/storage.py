@@ -585,7 +585,7 @@ class Storage:
                 (chat_id, limit),
             ).fetchall()
         return [
-            (username, display_name, messages or "", last_seen)
+            (username, display_name, "\n".join((messages or "").splitlines()[-10:]), last_seen)
             for username, display_name, messages, last_seen in rows
         ]
 
