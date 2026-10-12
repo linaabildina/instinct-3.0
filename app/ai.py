@@ -78,6 +78,38 @@ class AIEngine:
                 self.storage.add_clan_memory_fact(chat_id, category, fact, people=people, confidence=confidence)
         except Exception:
             logger.debug('[MEMORY] Clan memory extraction skipped', exc_info=True)
+    async def choose_sticker_id(self, user_text: str, draft_answer: str, stickers: list[dict]) -> int | None:
+        """Выбирает стикер по смыслу переписки; None означает, что лучше ответить текстом."""
+        if not stickers:
+            return None
+        compact = [
+            {"id": int(item["id"]), "tags": str(item.get("tags") or ""), "emoji": str(item.get("emoji") or "")}
+            for item in stickers[:100]
+        ]
+        prompt = (
+            "Ты выбираешь реакцию-стикер для Алины — полноценной участницы дружеского игрового чата Perfect World. "
+            "Оцени сообщение игрока, контекст и подготовленный текстовый ответ. "
+            "Выбери один ID только если стикер естественнее текста или отлично дополняет короткую шутливую реакцию. "
+            "Не выбирай стикер для серьёзных вопросов, полезных инструкций, конфликтов, личных проблем, "
+            "важных объявлений или когда он будет выглядеть навязчиво. Не используй один и тот же тип реакции постоянно. "
+            "Список стикеров содержит ID, теги и эмодзи. Верни только число выбранного ID либо NONE. "
+            "Не выдумывай ID.\n\n"
+            f"Доступные стикеры: {json.dumps(compact, ensure_ascii=False)}"
+        )
+        try:
+            raw = (await self._generate([
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"Сообщение игрока: {user_text[:1200]}\nЧерновик ответа Алины: {draft_answer[:800]}"},
+            ])).strip()
+            match = re.fullmatch(r"(?:ID\s*[:=]?\s*)?(\d+)", raw, re.I)
+            if not match:
+                return None
+            selected = int(match.group(1))
+            return selected if any(item["id"] == selected for item in compact) else None
+        except Exception:
+            logger.exception("[STICKER] AI selection failed")
+            return None
+
     async def synthesize_speech(self, text: str) -> bytes:
         """Generate Telegram-compatible Opus voice audio for Alina's reply."""
         text = text.strip()
