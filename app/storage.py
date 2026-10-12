@@ -42,6 +42,7 @@ class Storage:
             profile_columns = {row[1] for row in conn.execute("PRAGMA table_info(player_profiles)").fetchall()}
             for column, definition in {
                 "interests": "TEXT NOT NULL DEFAULT ''",
+                "personal_facts": "TEXT NOT NULL DEFAULT ''",
                 "communication_style": "TEXT NOT NULL DEFAULT ''",
                 "recurring_topics": "TEXT NOT NULL DEFAULT ''",
                 "message_count": "INTEGER NOT NULL DEFAULT 0",
