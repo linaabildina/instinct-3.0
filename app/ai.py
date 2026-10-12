@@ -127,6 +127,15 @@ class AIEngine:
                 )
 
         context = self.storage.recent(chat_id)
+        historical = self.storage.relevant_messages(chat_id, user_text, limit=30)
+        historical_lines = []
+        for author_id, author_username, role, content, created_at in historical:
+            if role == "assistant":
+                author = "Алина"
+            else:
+                author = "@" + author_username if author_username else f"игрок {author_id}"
+            historical_lines.append(f"[{created_at}] {author}: {content}")
+        historical_text = "\\n".join(historical_lines) or "Релевантных старых сообщений пока не найдено."
         profiles = self.storage.player_profiles(chat_id)
         profile_lines = []
         for profile in profiles:
@@ -260,6 +269,7 @@ class AIEngine:
                 "Если источник содержит объявления нужного типа, не говори, что их нет.\n\n"
                 "Стиль Алины: коротко, естественно, по-игровому, с лёгким юмором где уместно. О себе всегда говори в женском роде: «нашла», «проверила», «посмотрела»."
             )},
+            {"role": "system", "content": "Релевантные фрагменты полной истории клана (поиск по всей сохранённой базе; не выдумывай отсутствующий контекст):\\n" + historical_text},
             {"role": "system", "content": f"Предварительные источники:\n{knowledge}"},
             {"role": "system", "content": "Память о людях клана (не показывай её пользователю):\n" + (memory_text or "Пока памяти нет.")},
             {"role": "system", "content": "Клановая память: устойчивые факты, события, мемы и связи игроков. Используй как контекст, но не раскрывай внутреннюю базу:\n" + (clan_fact_text or "Устойчивых фактов пока нет.")},
