@@ -1583,7 +1583,13 @@ async def on_message(message: Message):
 
     storage.add(message.chat.id, message.from_user.id if message.from_user else None, message.from_user.username if message.from_user else None, 'user', text)
     try:
-        answer = _strip_urls(await ai.decide_and_answer(message.chat.id, text))
+        answer = _strip_urls(await ai.decide_and_answer(
+            message.chat.id,
+            text,
+            user_id=user_id,
+            username=message.from_user.username if message.from_user else None,
+            display_name=display_name,
+        ))
         if not answer: return
         await message.answer(answer, reply_to_message_id=message.message_id)
         storage.add(message.chat.id, None, None, 'assistant', answer)
