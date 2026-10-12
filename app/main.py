@@ -86,9 +86,10 @@ class GroupArchiveMiddleware(BaseMiddleware):
                 else:
                     content = '[сообщение типа ' + str(event.content_type) + ']'
             storage.add(event.chat.id, event.from_user.id, event.from_user.username, 'user', content)
-            # Подписи к фото/видео тоже пополняют профиль; текстовые сообщения профилируются в on_message.
-            if not event.text and event.caption:
-                storage.update_player_observation(event.chat.id, event.from_user.id, event.from_user.username, event.from_user.full_name, event.caption)
+            # Профиль пополняется каждым текстом/подписью, в том числе командами, до их обработки.
+            profile_text = event.text or event.caption
+            if profile_text:
+                storage.update_player_observation(event.chat.id, event.from_user.id, event.from_user.username, event.from_user.full_name, profile_text)
         return await handler(event, data)
 
 
@@ -1547,7 +1548,6 @@ async def on_message(message: Message):
     # Это происходит до проверки команд и включённости ответов Алины.
     if user_id is not None:
         storage.remember_user(message.chat.id, user_id, username, display_name, original_text)
-        storage.update_player_observation(message.chat.id, user_id, username, display_name, original_text)
 
     if original_text.split()[0].split('@')[0].lower() in {'/start','/stop','/status','/consultant','/roulette','/watch','/watches','/unwatch','/history','/market','/reminders','/cancel','/newbie','/roles','/officer','/unofficer','/officers'}: return
     if not storage.is_chat_enabled(message.chat.id): return
