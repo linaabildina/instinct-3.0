@@ -1555,24 +1555,9 @@ async def on_message(message: Message):
     if original_text.split()[0].split('@')[0].lower() in {'/start','/stop','/status','/consultant','/roulette','/watch','/watches','/unwatch','/history','/market','/reminders','/cancel','/newbie','/roles','/officer','/unofficer','/officers'}: return
     if not storage.is_chat_enabled(message.chat.id): return
 
-    # Алина замечает возвращение участника после долгого отсутствия.
-    if previous_seen and user_id:
-        try:
-            last_seen_dt = datetime.fromisoformat(previous_seen)
-            if last_seen_dt.tzinfo is None:
-                last_seen_dt = last_seen_dt.replace(tzinfo=__import__('datetime').timezone.utc)
-            hours_away = (datetime.now(__import__('datetime').timezone.utc) - last_seen_dt).total_seconds() / 3600
-            if hours_away >= 24:
-                return_name = display_name or (f'@{message.from_user.username}' if message.from_user and message.from_user.username else 'ты')
-                return_messages = [
-                    f'О, {return_name} воскресла 😏 Я уже думала, куда ты пропала.',
-                    f'О, {return_name} вернулась 👀 А я уже заметила, что тебя давно не было.',
-                    f'Наконец-то {return_name} объявилась 😌 Я тебя уже потеряла.',
-                    f'О, {return_name} снова с нами 😏 Где пропадала?',
-                ]
-                await message.answer(random.choice(return_messages))
-        except (ValueError, TypeError, OverflowError):
-            pass
+    # Возвращение после долгого отсутствия не вызывает автоматическое приветствие.
+    # Это событие сохраняется в архиве, а уместность реакции должна определяться
+    # общим контекстным решением модели, а не отдельным шаблоном.
 
     recruiter = _parse_recruiter_query(original_text)
     if recruiter and _is_allowed_chat(message) and _addressed_to_alina(original_text):
@@ -1623,13 +1608,8 @@ async def on_message(message: Message):
         storage.add_knowledge_correction(message.chat.id, text)
         logging.info("[KNOWLEDGE] Saved user correction: %s", text[:300])
 
-    # Иногда Алина реагирует на сообщение прямо в Telegram, без отдельного текста.
-    # Это делает реакцию естественной и не превращает каждый ответ в спам реакциями.
-    if random.random() < 0.35:
-        try:
-            await message.react(reaction=[ReactionTypeEmoji(emoji=random.choice(['👍', '❤️', '😂', '🔥', '👀']))])
-        except Exception as exc:
-            logging.debug('Could not add Telegram reaction: %s', exc)
+    # Не ставим случайные реакции на сообщения: реакции, как и текстовые реплики,
+    # не должны появляться без анализа уместности.
 
     try:
         answer = _strip_urls(await ai.decide_and_answer(
