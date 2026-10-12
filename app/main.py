@@ -1585,16 +1585,16 @@ async def on_message(message: Message):
         or is_mention_to_alina
         or _is_general_greeting(original_text)
     )
-    # Алина может сама вступать в разговор как игрок, но не спамит:
-    # редкие органичные реплики и не чаще одной примерно в 75 секунд на группу.
-    player_mode = False
-    if not is_direct_interaction:
+    # Каждое сообщение проходит контекстный анализ: Алина не должна выбирать
+    # реплики случайным числом. Решение «вмешаться или промолчать» принимает AIEngine
+    # на основании всей доступной истории. Cooldown ограничивает только отправку,
+    # но не анализ и не обновление памяти.
+    player_mode = not is_direct_interaction
+    social_cooldown_active = False
+    if player_mode:
         now_mono = time.monotonic()
         last_social = _last_alina_social_reply.get(message.chat.id, 0.0)
-        if now_mono - last_social < 75 or random.random() >= 0.22:
-            return
-        _last_alina_social_reply[message.chat.id] = now_mono
-        player_mode = True
+        social_cooldown_active = (now_mono - last_social) < 75
 
     # Если игрок отвечает на чужое сообщение и в Reply упоминает @instinctbot_bot,
     # Алина должна понять, что обращаются к ней, и использовать исходное сообщение как контекст.
@@ -1641,8 +1641,15 @@ async def on_message(message: Message):
             profile_source_text=original_text,
             player_mode=player_mode,
         ))
+        # В режиме участника модель анализирует каждое сообщение, но даже удачная
+        # реплика не отправляется чаще установленного интервала. Память при этом
+        # обновляется внутри decide_and_answer независимо от отправки ответа.
+        if player_mode and social_cooldown_active:
+            answer = ""
         if not answer: return
         await message.answer(answer, reply_to_message_id=message.message_id)
+        if player_mode:
+            _last_alina_social_reply[message.chat.id] = time.monotonic()
         storage.add(message.chat.id, None, None, 'assistant', answer)
         if _is_general_greeting(original_text):
             try:
