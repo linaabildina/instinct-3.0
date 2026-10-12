@@ -26,6 +26,18 @@ class Storage:
                 messages TEXT NOT NULL DEFAULT '',
                 PRIMARY KEY (chat_id, user_id)
             )""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS player_profiles (
+                chat_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                username TEXT,
+                display_name TEXT,
+                gender TEXT CHECK(gender IN ('male', 'female')),
+                confidence REAL NOT NULL DEFAULT 0,
+                evidence TEXT,
+                source_text TEXT,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (chat_id, user_id)
+            )""")
             conn.execute("""CREATE TABLE IF NOT EXISTS clan_memory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 chat_id INTEGER NOT NULL,
@@ -299,8 +311,7 @@ class Storage:
             ).fetchone()
             history = [x for x in (row[0].split("\n") if row and row[0] else []) if x]
             if message:
-                history.append(message.strip()[:500])
-                history = history[-10:]
+                history.append(message.strip())
             conn.execute(
                 """INSERT INTO user_memory(chat_id,user_id,username,display_name,last_seen,messages)
                    VALUES(?,?,?,?,?,?)
@@ -311,6 +322,69 @@ class Storage:
                        messages=excluded.messages""",
                 (chat_id, user_id, username, display_name, datetime.now(timezone.utc).isoformat(), "\n".join(history)),
             )
+
+    def save_player_profile(
+        self, chat_id: int, user_id: int, username: str | None,
+        display_name: str | None, gender: str, confidence: float,
+        evidence: str, source_text: str,
+    ) -> bool:
+        """Persist gender only when supported by strong first-person evidence."""
+        if gender not in {"male", "female"} or confidence < 0.9:
+            return False
+        now = datetime.now(timezone.utc).isoformat()
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT gender, confidence FROM player_profiles WHERE chat_id=? AND user_id=?",
+                (chat_id, user_id),
+            ).fetchone()
+            if row and row[0] != gender and confidence <= float(row[1]):
+                conn.execute(
+                    """UPDATE player_profiles SET username=?, display_name=?, updated_at=?
+                       WHERE chat_id=? AND user_id=?""",
+                    (username, display_name, now, chat_id, user_id),
+                )
+                return False
+            conn.execute(
+                """INSERT INTO player_profiles(
+                    chat_id,user_id,username,display_name,gender,confidence,evidence,source_text,updated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(chat_id,user_id) DO UPDATE SET
+                    username=excluded.username, display_name=excluded.display_name,
+                    gender=excluded.gender, confidence=excluded.confidence,
+                    evidence=excluded.evidence, source_text=excluded.source_text,
+                    updated_at=excluded.updated_at""",
+                (chat_id, user_id, username, display_name, gender, confidence,
+                 evidence[:300], source_text[:1000], now),
+            )
+        return True
+
+    def player_profile(self, chat_id: int, user_id: int):
+        with self._conn() as conn:
+            row = conn.execute(
+                """SELECT user_id, username, display_name, gender, confidence, evidence, updated_at
+                   FROM player_profiles WHERE chat_id=? AND user_id=?""",
+                (chat_id, user_id),
+            ).fetchone()
+        if not row:
+            return None
+        return {"user_id": row[0], "username": row[1], "display_name": row[2],
+                "gender": row[3], "confidence": row[4], "evidence": row[5],
+                "updated_at": row[6]}
+
+    def player_profiles(self, chat_id: int, limit: int = 200):
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT user_id, username, display_name, gender, confidence, evidence, updated_at
+                   FROM player_profiles WHERE chat_id=? AND gender IS NOT NULL
+                   ORDER BY updated_at DESC LIMIT ?""",
+                (chat_id, limit),
+            ).fetchall()
+        return [
+            {"user_id": row[0], "username": row[1], "display_name": row[2],
+             "gender": row[3], "confidence": row[4], "evidence": row[5],
+             "updated_at": row[6]}
+            for row in rows
+        ]
 
     def user_last_seen(self, chat_id: int, user_id: int):
         with self._conn() as conn:
@@ -389,12 +463,16 @@ class Storage:
             ).fetchall()
 
     def user_memories(self, chat_id: int, limit: int = 30):
+        # Keep the full history in SQLite, but send only a compact slice to the model.
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT username, display_name, messages, last_seen FROM user_memory WHERE chat_id=? ORDER BY last_seen DESC LIMIT ?",
                 (chat_id, limit),
             ).fetchall()
-        return rows
+        return [
+            (username, display_name, "\n".join((messages or "").splitlines()[-10:]), last_seen)
+            for username, display_name, messages, last_seen in rows
+        ]
 
     def add_knowledge_correction(self, chat_id: int, correction: str):
         correction = correction.strip()
