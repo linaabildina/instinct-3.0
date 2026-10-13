@@ -1680,13 +1680,13 @@ async def on_message(message: Message):
         _addressed_to_alina(original_text)
         or is_reply_to_alina
         or is_mention_to_alina
-        or _is_general_greeting(original_text)
     )
-    # Каждое сообщение проходит контекстный анализ: Алина не должна выбирать
-    # реплики случайным числом. Решение «вмешаться или промолчать» принимает AIEngine
-    # на основании всей доступной истории. Cooldown ограничивает только отправку,
-    # но не анализ и не обновление памяти.
-    player_mode = not is_direct_interaction
+    # Строгий режим: Алина не вступает в общий разговор и не отвечает на
+    # обычные приветствия, если к ней не обратились напрямую по имени,
+    # через @упоминание или ответом на её сообщение.
+    if not is_direct_interaction:
+        return
+    player_mode = False
     social_cooldown_active = False
     if player_mode:
         now_mono = time.monotonic()
