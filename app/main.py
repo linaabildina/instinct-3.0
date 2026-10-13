@@ -69,6 +69,24 @@ class GroupArchiveMiddleware(BaseMiddleware):
         # Архивируем каждое входящее сообщение участника группы до обработки командами/ответами.
         if isinstance(event, Message) and event.from_user and event.from_user.id != _bot_id and _is_allowed_chat(event):
             content = event.text or event.caption
+            if event.sticker:
+                # Автоматически сохраняем каждый новый стикер из разрешённой группы
+                # в коллекцию Алины. Сообщение участника не удаляем и не меняем.
+                try:
+                    known_file_ids = {row[1] for row in get_stickers(settings.db_path)}
+                    if event.sticker.file_id not in known_file_ids:
+                        emoji = event.sticker.emoji or ''
+                        tags = ', '.join(x for x in ('из чата', 'реакция', emoji) if x) or 'реакция из чата'
+                        add_sticker(
+                            settings.db_path,
+                            event.sticker.file_id,
+                            tags,
+                            event.sticker.emoji,
+                            event.from_user.id,
+                        )
+                        logging.info("Saved new group sticker to Alina collection: %s", emoji or "no emoji")
+                except Exception:
+                    logging.exception("Could not auto-save group sticker")
             if not content:
                 if event.sticker:
                     content = '[стикер: ' + (event.sticker.emoji or 'без эмодзи') + ']'
