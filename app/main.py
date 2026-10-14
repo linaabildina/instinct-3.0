@@ -1954,8 +1954,8 @@ def request_stop():
 
 
 @dp.poll()
-async def alina_daily_poll_closed(poll):
-    await handle_poll_update(Bot(settings.telegram_token), ai, daily_poll_manager, poll)
+async def alina_daily_poll_closed(poll, bot: Bot):
+    await handle_poll_update(bot, ai, daily_poll_manager, poll)
 
 
 async def main():
