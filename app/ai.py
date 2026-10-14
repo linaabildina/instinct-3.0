@@ -177,6 +177,7 @@ class AIEngine:
         self, chat_id: int, user_text: str, user_id: int | None = None,
         username: str | None = None, display_name: str | None = None,
         profile_source_text: str | None = None, player_mode: bool = False,
+        direct_address: bool = False,
     ) -> str:
         # Save gender only from strong first-person evidence; names and usernames are not proof.
         if user_id is not None:
@@ -402,6 +403,17 @@ class AIEngine:
             "content": "Последние реплики общего чата. Учитывай, кто именно это сказал, и отвечай как участница разговора, а не как справочник:\n"
             + ("\n".join(recent_lines) if recent_lines else "Недавних реплик нет.")
         })
+        if direct_address:
+            messages.append({
+                "role": "system",
+                "content": (
+                    "ОБЯЗАТЕЛЬНЫЙ ОТВЕТ: это сообщение уже распознано кодом как прямое обращение к Алине. "
+                    "Ты обязана ответить и не имеешь права возвращать NO_REPLY или пустой ответ. "
+                    "Если вопрос непонятен — уточни; если не знаешь ответа — скажи честно. "
+                    "Выбери естественную манеру Алины: по делу, с юмором, дружеским подколом или аргументированным несогласием. "
+                    "При необходимости продолжи диалог встречным вопросом. Не выдумывай факты и не дублируй ответ."
+                ),
+            })
         messages.append({"role": "user", "content": user_text})
 
         answer = await self._generate(messages, web_search=not player_mode)
