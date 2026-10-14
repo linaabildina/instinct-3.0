@@ -30,11 +30,18 @@ class DailyPollManager:
                     options_json TEXT NOT NULL,
                     poll_date TEXT NOT NULL,
                     thread_id INTEGER,
+                    message_id INTEGER,
+                    closed INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,
                     commentary_status TEXT NOT NULL DEFAULT 'pending',
                     commentary TEXT
                 )
             """)
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(alina_daily_polls)").fetchall()}
+            if "message_id" not in columns:
+                conn.execute("ALTER TABLE alina_daily_polls ADD COLUMN message_id INTEGER")
+            if "closed" not in columns:
+                conn.execute("ALTER TABLE alina_daily_polls ADD COLUMN closed INTEGER NOT NULL DEFAULT 0")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_alina_daily_polls_chat_date "
                 "ON alina_daily_polls(chat_id, poll_date)"
@@ -75,14 +82,31 @@ class DailyPollManager:
         return history
 
     def save_poll(self, chat_id: int, poll_id: str, question: str, theme: str,
-                  options: list[str], poll_date: str, thread_id: int | None):
+                  options: list[str], poll_date: str, thread_id: int | None, message_id: int):
         with self._connect() as conn:
             conn.execute(
                 "INSERT INTO alina_daily_polls "
-                "(chat_id, poll_id, question, theme, options_json, poll_date, thread_id, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "(chat_id, poll_id, question, theme, options_json, poll_date, thread_id, message_id, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (chat_id, str(poll_id), question, theme, json.dumps(options, ensure_ascii=False),
-                 poll_date, thread_id, datetime.now(TZ).isoformat()),
+                 poll_date, thread_id, message_id, datetime.now(TZ).isoformat()),
+            )
+
+    def expired_polls(self, age_seconds: int = 86400) -> list[dict]:
+        cutoff = (datetime.now(TZ) - timedelta(seconds=age_seconds)).isoformat()
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT chat_id, poll_id, message_id FROM alina_daily_polls "
+                "WHERE closed=0 AND message_id IS NOT NULL AND created_at<=?",
+                (cutoff,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def mark_closed(self, poll_id: str):
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE alina_daily_polls SET closed=1 WHERE poll_id=?",
+                (str(poll_id),),
             )
 
     def get_poll(self, poll_id: str):
@@ -195,12 +219,11 @@ async def run_daily_polls(bot, ai, manager: DailyPollManager, chat_id: int,
                 options=data["options"],
                 is_anonymous=True,
                 allows_multiple_answers=False,
-                open_period=86400,
                 message_thread_id=topic_id,
             )
             manager.save_poll(
                 chat_id, message.poll.id, data["question"], data["theme"],
-                data["options"], poll_date, topic_id,
+                data["options"], poll_date, topic_id, message.message_id,
             )
             logging.info("Alina daily poll posted: theme=%s poll_id=%s", data["theme"], message.poll.id)
         except asyncio.CancelledError:
@@ -260,3 +283,24 @@ async def handle_poll_update(bot, ai, manager: DailyPollManager, poll):
     except Exception:
         manager.finish_commentary(poll.id, None)
         logging.exception("Alina poll commentary failed for poll %s", poll.id)
+
+
+async def close_expired_polls_forever(bot, manager: DailyPollManager):
+    """Close polls after 24 hours, including after bot restarts."""
+    while True:
+        try:
+            for record in manager.expired_polls():
+                try:
+                    await bot.stop_poll(
+                        chat_id=record["chat_id"],
+                        message_id=record["message_id"],
+                    )
+                    manager.mark_closed(record["poll_id"])
+                except Exception:
+                    logging.exception("Could not close expired Alina poll %s", record["poll_id"])
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.exception("Expired poll closing loop failed")
+            await asyncio.sleep(60)
