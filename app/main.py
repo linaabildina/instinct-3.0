@@ -31,7 +31,7 @@ from app.youtube_browser import like_video, get_video_rating
 from app.roles import RoleManager, is_telegram_admin
 from app.google_newbie import send_newbie_to_google, test_google_newbie, get_google_config_status
 from app.stickers import add_sticker, list_stickers, get_stickers, remove_sticker
-from app.daily_polls import DailyPollManager, run_daily_polls, handle_poll_update
+from app.daily_polls import DailyPollManager, run_daily_polls, close_expired_polls_forever, handle_poll_update
 try:
     from app.news_monitor import run_news_monitor_in_thread
 except ImportError:
@@ -133,6 +133,7 @@ _reminder_task: asyncio.Task | None = None
 _youtube_task: asyncio.Task | None = None
 _random_events_task: asyncio.Task | None = None
 _daily_polls_task: asyncio.Task | None = None
+_daily_poll_closer_task: asyncio.Task | None = None
 _morning_greeting_task: asyncio.Task | None = None
 _roulette_task: asyncio.Task | None = None
 
@@ -1955,11 +1956,13 @@ def request_stop():
 
 @dp.poll()
 async def alina_daily_poll_closed(poll, bot: Bot):
+    if getattr(poll, "is_closed", False):
+        daily_poll_manager.mark_closed(poll.id)
     await handle_poll_update(bot, ai, daily_poll_manager, poll)
 
 
 async def main():
-    global _bot_id, _polling_loop, _polling_task, _knowledge_sync_task, _news_monitor_thread, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task, _roulette_task, _daily_recruit_check_task, _daily_polls_task
+    global _bot_id, _polling_loop, _polling_task, _knowledge_sync_task, _news_monitor_thread, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task, _roulette_task, _daily_recruit_check_task, _daily_polls_task, _daily_poll_closer_task
     _polling_loop = asyncio.get_running_loop()
     bot = Bot(settings.telegram_token)
     me = await bot.get_me()
@@ -1979,6 +1982,7 @@ async def main():
     _roulette_task = asyncio.create_task(_roulette_announcement_forever(bot))
     _daily_recruit_check_task = asyncio.create_task(_daily_recruit_check_forever(bot))
     _daily_polls_task = asyncio.create_task(run_daily_polls(bot, ai, daily_poll_manager, settings.group_chat_id, topic_id=2))
+    _daily_poll_closer_task = asyncio.create_task(close_expired_polls_forever(bot, daily_poll_manager))
     if run_news_monitor_in_thread is not None:
         import threading
         _news_monitor_thread = threading.Thread(target=run_news_monitor_in_thread, name='telegram-news-monitor', daemon=True)
@@ -1987,7 +1991,7 @@ async def main():
         _polling_task = asyncio.current_task()
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
-        for task in (_knowledge_sync_task, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task, _roulette_task, _daily_recruit_check_task, _daily_polls_task):
+        for task in (_knowledge_sync_task, _watch_task, _reminder_task, _youtube_task, _morning_greeting_task, _roulette_task, _daily_recruit_check_task, _daily_polls_task, _daily_poll_closer_task):
             if task and not task.done(): task.cancel()
         await bot.session.close()
 
