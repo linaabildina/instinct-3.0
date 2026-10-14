@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    branches: [main, feature/alina-daily-chaos-polls]
 
 jobs:
   build:
