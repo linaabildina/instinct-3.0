@@ -1754,6 +1754,7 @@ async def on_message(message: Message):
             display_name=display_name,
             profile_source_text=original_text,
             player_mode=player_mode,
+            direct_address=is_direct_interaction,
         ))
         # В режиме участника модель анализирует каждое сообщение, но даже удачная
         # реплика не отправляется чаще установленного интервала. Память при этом
