@@ -1350,24 +1350,40 @@ async def roulette_webapp_result(message: Message):
     )
 
 
-@dp.message(Command('start'))
+@dp.message(CommandStart())
 async def command_start(message: Message):
-    # Ежедневная кнопка рулетки может открыть персональный запуск сразу.
+    # Telegram может присылать /start@botusername — CommandStart обрабатывает оба формата.
     if message.chat.type == "private" and message.text:
         parts = message.text.split(maxsplit=1)
         if len(parts) > 1 and parts[1].strip().lower() == "roulette":
             await command_roulette(message)
             return
-    if not await _is_admin_user(message): return
+    if not _is_allowed_chat(message):
+        await message.answer("Этот чат не настроен для Алины. Команды управления доступны в основном чате клана.")
+        logging.warning("[COMMAND] /start received in unconfigured chat_id=%s", message.chat.id)
+        return
+    if not await _is_admin_user(message):
+        await message.answer("Не удалось подтвердить права администратора. Проверь, что ты администратор этой группы и GROUP_CHAT_ID совпадает с ID основного чата.")
+        logging.warning("[COMMAND] /start denied chat_id=%s user_id=%s", message.chat.id, message.from_user.id if message.from_user else None)
+        return
     storage.set_chat_enabled(message.chat.id, True)
-    await message.answer('🟢 Бот запущен. Теперь отвечаю на сообщения.')
+    await message.answer("🟢 Алина запущена. Теперь отвечаю на обращения по имени, упоминания и ответы на мои сообщения.")
+    logging.info("[COMMAND] Chat enabled chat_id=%s by user_id=%s", message.chat.id, message.from_user.id if message.from_user else None)
 
 
-@dp.message(Command('stop'))
+@dp.message(Command("stop"))
 async def command_stop(message: Message):
-    if not await _is_admin_user(message): return
+    if not _is_allowed_chat(message):
+        await message.answer("Этот чат не настроен для управления Алиной.")
+        logging.warning("[COMMAND] /stop received in unconfigured chat_id=%s", message.chat.id)
+        return
+    if not await _is_admin_user(message):
+        await message.answer("Остановить Алину может только администратор основного чата. Проверь права администратора и GROUP_CHAT_ID.")
+        logging.warning("[COMMAND] /stop denied chat_id=%s user_id=%s", message.chat.id, message.from_user.id if message.from_user else None)
+        return
     storage.set_chat_enabled(message.chat.id, False)
-    await message.answer('🔴 Бот остановлен. Команду /start можно использовать для запуска.')
+    await message.answer("🔴 Алина остановлена. Для запуска используй /start.")
+    logging.info("[COMMAND] Chat disabled chat_id=%s by user_id=%s", message.chat.id, message.from_user.id if message.from_user else None)
 
 
 @dp.message(Command('status'))
@@ -1658,6 +1674,71 @@ async def _try_contextual_sticker(message: Message, user_text: str, answer: str)
     except Exception:
         logging.exception("[STICKER] Contextual selection failed; sending text reply")
         return False
+
+
+@dp.message(
+    F.text,
+    lambda message: _is_allowed_chat(message)
+    and _addressed_to_alina(message.text or "")
+    and bool(re.search(r"(?i)\\b(?:расскажи|опиши|охарактеризуй)\\s+(?:мне\\s+)?(?:о\\s+)?(?:пользователе|игрока?|человеке)\\s+@?[A-Za-z0-9_]{3,32}\\b", message.text or ""))
+)
+async def describe_player(message: Message):
+    """Смешно описывает игрока по реальным сообщениям, не выдумывая биографию."""
+    match = re.search(
+        r"(?i)\\b(?:расскажи|опиши|охарактеризуй)\\s+(?:мне\\s+)?(?:о\\s+)?(?:пользователе|игрока?|человеке)\\s+@?([A-Za-z0-9_]{3,32})\\b",
+        message.text or "",
+    )
+    if not match:
+        return
+    username = match.group(1).lstrip("@")
+    found = role_manager.find_user_by_username(message.chat.id, username)
+    if not found:
+        await message.answer(
+            f"Пока не знаю @{username} достаточно хорошо 😅 Пусть сначала напишет в чат — тогда смогу собрать наблюдения."
+        )
+        return
+
+    target_id, known_username, display_name = found
+    profile = storage.player_profile(message.chat.id, target_id) or {}
+    messages = storage.player_messages(message.chat.id, target_id, limit=30)
+    if not messages:
+        await message.answer(
+            f"Про @{username} пока мало материала для досье 😅 В архиве нет его сообщений."
+        )
+        return
+
+    excerpts = "\\n".join(
+        f"- {created_at}: {content[:350]}"
+        for _uname, content, created_at in messages[-20:]
+    )
+    profile_lines = [
+        f"Имя: {display_name or 'не указано'}",
+        f"Ник: @{known_username or username}",
+        f"Сообщений в профиле: {profile.get('message_count', len(messages))}",
+        f"Темы: {profile.get('recurring_topics') or 'пока не выявлены'}",
+        f"Интересы: {profile.get('interests') or 'пока не выявлены'}",
+        f"Манера общения: {profile.get('communication_style') or 'оцени только по цитатам ниже'}",
+        f"Подтверждённые факты: {profile.get('personal_facts') or 'нет'}",
+    ]
+    prompt = (
+        "Алина, составь короткое смешное, дружеское описание игрока для кланового чата. "
+        "Используй лёгкий игровой юмор и конкретные наблюдения из сообщений: что часто пишет, "
+        "чем интересуется в игре, на что жалуется или о чём спрашивает. Подкалывай доброжелательно, "
+        "не унижай. Не придумывай работу, доход, отношения, возраст, здоровье или другие факты, "
+        "которых нет в данных. Если материала мало — прямо скажи это и пошути мягко. "
+        "Не выдавай предположения за факты. 3–6 предложений, по-русски, живым языком.\\n\\n"
+        + "\\n".join(profile_lines)
+        + "\\n\\nПоследние сообщения игрока:\\n" + excerpts
+    )
+    try:
+        answer = _strip_urls(await ai.answer(message.chat.id, prompt))
+        if not answer:
+            answer = f"@{username} пока слишком загадочный персонаж — сообщений хватает только на трейлер, а не на полный сезон 😄"
+        await message.answer(answer, reply_to_message_id=message.message_id)
+        storage.add(message.chat.id, None, None, "assistant", answer)
+    except Exception:
+        logging.exception("[PLAYER_DESCRIPTION] Failed for username=%s", username)
+        await message.answer("Не смогла собрать описание игрока сейчас. Попробуй ещё раз чуть позже.")
 
 
 @dp.message(F.text)
