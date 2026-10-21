@@ -1757,12 +1757,9 @@ async def on_message(message: Message):
         if player_mode and social_cooldown_active:
             answer = ""
         if not answer: return
-        # Стикер заменяет текстовый ответ только тогда, когда ИИ считает его уместным.
-        # Коллекция пуста или выбор не удался — отправляем исходный текст как обычно.
-        if await _try_contextual_sticker(message, text, answer):
-            if player_mode:
-                _last_alina_social_reply[message.chat.id] = time.monotonic()
-            return
+        # Стикер — дополнение к ответу, а не замена текста.
+        # Даже если ИИ выбрал стикер, отправляем пользователю и содержательный ответ.
+        await _try_contextual_sticker(message, text, answer)
         await message.answer(answer, reply_to_message_id=message.message_id)
         if player_mode:
             _last_alina_social_reply[message.chat.id] = time.monotonic()
