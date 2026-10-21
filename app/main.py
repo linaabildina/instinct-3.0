@@ -430,8 +430,8 @@ async def command_forum_search(message: Message):
 
 def _game_request(text: str) -> bool:
     normalized = re.sub(r'[^a-zа-яё0-9 ]+', ' ', text.lower())
-    normalized = re.sub(r'\\s+', ' ', normalized).strip()
-    return bool(re.search(r'\\bалина\\b', normalized) and re.search(r'\\bдавай\\s+(?:поиграем|играть)\\b', normalized))
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    return bool(re.search(r'\\bалина\\b', normalized) and re.search(r'\\bдавай\s+(?:поиграем|играть)\\b', normalized))
 
 
 @dp.message(F.text, lambda message: _is_allowed_chat(message) and _game_request((message.text or '').strip()))
@@ -1086,7 +1086,7 @@ async def newbie_confirm_callback(callback: CallbackQuery):
 
 
 def _parse_analytics_command(text: str):
-    match = re.match(r"^/analytics(?:@\\w+)?(?:\\s+(.+))?\\s*$", text or "", re.I)
+    match = re.match(r"^/analytics(?:@\\w+)?(?:\s+(.+))?\\s*$", text or "", re.I)
     if not match:
         return None
     target = (match.group(1) or "all").strip()
@@ -1121,7 +1121,7 @@ async def command_analytics(message: Message):
             who = f"@{username}" if username else (display_name or "неизвестно")
             lines.append(f"• {who} — <b>{count}</b>")
 
-        await message.answer("\\n".join(lines), parse_mode="HTML")
+        await message.answer("\n".join(lines), parse_mode="HTML")
         return
 
     target = target.lstrip("@").strip()
@@ -1144,7 +1144,7 @@ async def command_analytics(message: Message):
             f"({created_at[:10]})"
         )
 
-    await message.answer("\\n".join(lines), parse_mode="HTML")
+    await message.answer("\n".join(lines), parse_mode="HTML")
 
 
 @dp.message(
@@ -1547,7 +1547,7 @@ async def on_new_chat_members(message: Message):
     if len(names) == 1:
         text = random.choice(greetings).format(name=names[0])
     else:
-        text = "Добро пожаловать в клан! 👋\\n\\n" + "\\n".join(f"• {name}" for name in names)
+        text = "Добро пожаловать в клан! 👋\\n\\n" + "\n".join(f"• {name}" for name in names)
         text += "\\n\\nОсваивайтесь, теперь вы с нами 😏"
 
     await message.bot.send_message(
@@ -1680,12 +1680,12 @@ async def _try_contextual_sticker(message: Message, user_text: str, answer: str)
     F.text,
     lambda message: _is_allowed_chat(message)
     and _addressed_to_alina(message.text or "")
-    and bool(re.search(r"(?i)\\b(?:расскажи|опиши|охарактеризуй)\\s+(?:мне\\s+)?(?:о\\s+)?(?:пользователе|игрока?|человеке)\\s+@?[A-Za-z0-9_]{3,32}\\b", message.text or ""))
+    and bool(re.search(r"(?i)\b(?:расскажи|опиши|охарактеризуй)\s+(?:мне\s+)?(?:о\s+)?(?:пользователе|игрока?|человеке)\s+@?[A-Za-z0-9_]{3,32}\\b", message.text or ""))
 )
 async def describe_player(message: Message):
     """Смешно описывает игрока по реальным сообщениям, не выдумывая биографию."""
     match = re.search(
-        r"(?i)\\b(?:расскажи|опиши|охарактеризуй)\\s+(?:мне\\s+)?(?:о\\s+)?(?:пользователе|игрока?|человеке)\\s+@?([A-Za-z0-9_]{3,32})\\b",
+        r"(?i)\b(?:расскажи|опиши|охарактеризуй)\s+(?:мне\s+)?(?:о\s+)?(?:пользователе|игрока?|человеке)\s+@?([A-Za-z0-9_]{3,32})\\b",
         message.text or "",
     )
     if not match:
@@ -1707,7 +1707,7 @@ async def describe_player(message: Message):
         )
         return
 
-    excerpts = "\\n".join(
+    excerpts = "\n".join(
         f"- {created_at}: {content[:350]}"
         for _uname, content, created_at in messages[-20:]
     )
@@ -1727,7 +1727,7 @@ async def describe_player(message: Message):
         "не унижай. Не придумывай работу, доход, отношения, возраст, здоровье или другие факты, "
         "которых нет в данных. Если материала мало — прямо скажи это и пошути мягко. "
         "Не выдавай предположения за факты. 3–6 предложений, по-русски, живым языком.\\n\\n"
-        + "\\n".join(profile_lines)
+        + "\n".join(profile_lines)
         + "\\n\\nПоследние сообщения игрока:\\n" + excerpts
     )
     try:
