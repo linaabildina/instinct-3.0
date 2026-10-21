@@ -80,7 +80,7 @@ class AIEngine:
             logger.debug('[MEMORY] Clan memory extraction skipped', exc_info=True)
     async def extract_player_profile(self, chat_id: int, user_id: int, username: str | None, display_name: str | None, user_text: str, recent_context: list[tuple[str, str]]):
         """Extract only useful, reasonably supported player facts and merge them into long-term memory."""
-        context = "\\n".join(f"{role}: {content}" for role, content in recent_context[-8:])
+        context = "\n".join(f"{role}: {content}" for role, content in recent_context[-8:])
         prompt = (
             "Ты — аккуратный модуль долговременной памяти игрока в дружеском игровом клане. "
             "Извлекай только устойчивые сведения, которые сам игрок прямо сообщил или которые явно подтверждены контекстом. "
@@ -95,10 +95,10 @@ class AIEngine:
         try:
             raw = (await self._generate([
                 {"role": "system", "content": prompt},
-                {"role": "user", "content": f"Недавний контекст:\\n{context}\\n\\nНовое сообщение игрока:\\n{user_text[:2500]}"},
+                {"role": "user", "content": f"Недавний контекст:\n{context}\n\nНовое сообщение игрока:\n{user_text[:2500]}"},
             ])).strip()
             if raw.startswith("```"):
-                raw = "\\n".join(raw.splitlines()[1:-1]).strip()
+                raw = "\n".join(raw.splitlines()[1:-1]).strip()
             data = json.loads(raw)
             if not isinstance(data, dict):
                 return
@@ -242,7 +242,7 @@ class AIEngine:
         # Для запроса «пробей игрока» подмешиваем именно его профиль и сообщения,
         # а не только общую историю группы.
         player_lookup = re.search(
-            r"(?:пробей(?:-ка)?|расскажи\\s+про|что\\s+за\\s+персонаж|досье\\s+на|характеристик[ау]\\s+на)\\s+(@?[a-zа-яё0-9_.-]+)",
+            r"(?:пробей(?:-ка)?|расскажи\s+про|что\s+за\s+персонаж|досье\s+на|характеристик[ау]\s+на)\s+(@?[a-zа-яё0-9_.-]+)",
             user_text,
             re.I,
         )
@@ -280,7 +280,7 @@ class AIEngine:
                     f"[{created_at}] @{author_username or target_profile.get('username') or target_profile.get('user_id')}: {content}"
                     for author_username, content, created_at in target_messages
                 ]
-                target_history_text = "\\n".join(target_message_lines) or "В архиве пока нет сообщений этого игрока."
+                target_history_text = "\n".join(target_message_lines) or "В архиве пока нет сообщений этого игрока."
             elif len(candidates) > 1:
                 target_history_text = (
                     f"По имени «{target_query}» найдено несколько игроков. Не выбирай одного наугад; "
@@ -380,9 +380,9 @@ class AIEngine:
                 "и подтверждённые привычки общения; превращай их в короткий живой клановый подкол. Не делай выводов о работе или личной "
                 "жизни из отсутствия данных. Если игрок не найден или совпадений несколько — уточни ник, не выдумывай досье. "
                 "Если целевого запроса нет, это правило не меняет обычный ответ.\n\n"
-                + (f"Запрос на разбор: {player_lookup.group(0)}\\n" if player_lookup else "Запрос на разбор игрока не обнаружен.\\n")
-                + (f"Целевой профиль: {json.dumps(target_profile, ensure_ascii=False)}\\n" if target_profile else "")
-                + (f"Сообщения целевого игрока:\\n{target_history_text}" if player_lookup else "")
+                + (f"Запрос на разбор: {player_lookup.group(0)}\n" if player_lookup else "Запрос на разбор игрока не обнаружен.\n")
+                + (f"Целевой профиль: {json.dumps(target_profile, ensure_ascii=False)}\n" if target_profile else "")
+                + (f"Сообщения целевого игрока:\n{target_history_text}" if player_lookup else "")
             )},
             {"role": "system", "content": (
                 "Сохранённые профили игроков по Telegram ID (применяй только к соответствующему человеку):\n"
