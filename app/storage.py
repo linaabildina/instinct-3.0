@@ -596,6 +596,18 @@ class Storage:
                 "communication_style": row[9], "recurring_topics": row[10], "message_count": row[11],
                 "avg_message_length": row[12], "emoji_count": row[13], "slang_count": row[14]}
 
+    def player_messages(self, chat_id: int, user_id: int, limit: int = 40):
+        """Return the latest archived messages authored by one specific player."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """SELECT username, content, created_at
+                   FROM messages
+                   WHERE chat_id=? AND user_id=? AND role='user'
+                   ORDER BY id DESC LIMIT ?""",
+                (chat_id, user_id, max(1, min(int(limit), 100))),
+            ).fetchall()
+        return list(reversed(rows))
+
     def player_profiles(self, chat_id: int, limit: int | None = None):
         """Return every profile in the group; do not impose an artificial player limit."""
         with self._conn() as conn:
