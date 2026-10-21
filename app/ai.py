@@ -238,6 +238,59 @@ class AIEngine:
                 f"основание пола: {profile.get('evidence') or 'нет подтверждения'}"
             )
         profile_text = "\n".join(profile_lines) or "Профилей игроков пока нет; наблюдай и не угадывай факты."
+
+        # Для запроса «пробей игрока» подмешиваем именно его профиль и сообщения,
+        # а не только общую историю группы.
+        player_lookup = re.search(
+            r"(?:пробей(?:-ка)?|расскажи\\s+про|что\\s+за\\s+персонаж|досье\\s+на|характеристик[ау]\\s+на)\\s+(@?[a-zа-яё0-9_.-]+)",
+            user_text,
+            re.I,
+        )
+
+        def _lookup_key(value: str) -> str:
+            value = re.sub(r"[^a-zа-яё0-9_]", "", (value or "").casefold().lstrip("@"))
+            # Нормализуем частые русские падежные окончания: «Игоря» → «игор».
+            for ending in ("ого", "ему", "ому", "ами", "ями", "его", "ую", "юю", "ая", "яя",
+                           "ой", "ей", "ом", "ем", "ам", "ям", "ах", "ях", "ы", "и", "а", "я", "у", "ю", "е", "ь"):
+                if len(value) > len(ending) + 2 and value.endswith(ending):
+                    value = value[:-len(ending)]
+                    break
+            return value
+
+        target_profile = None
+        target_history_text = ""
+        if player_lookup:
+            target_query = player_lookup.group(1).strip().lstrip("@")
+            target_key = _lookup_key(target_query)
+            exact_username = target_query.casefold()
+            candidates = []
+            for profile in profiles:
+                profile_username = (profile.get("username") or "").casefold().lstrip("@")
+                profile_name = (profile.get("display_name") or "").casefold()
+                if profile_username == exact_username:
+                    candidates = [profile]
+                    break
+                name_tokens = re.findall(r"[a-zа-яё0-9_]+", profile_name)
+                if target_key and any(_lookup_key(token) == target_key for token in name_tokens):
+                    candidates.append(profile)
+            if len(candidates) == 1:
+                target_profile = candidates[0]
+                target_messages = self.storage.player_messages(chat_id, int(target_profile["user_id"]), limit=40)
+                target_message_lines = [
+                    f"[{created_at}] @{author_username or target_profile.get('username') or target_profile.get('user_id')}: {content}"
+                    for author_username, content, created_at in target_messages
+                ]
+                target_history_text = "\\n".join(target_message_lines) or "В архиве пока нет сообщений этого игрока."
+            elif len(candidates) > 1:
+                target_history_text = (
+                    f"По имени «{target_query}» найдено несколько игроков. Не выбирай одного наугад; "
+                    "попроси уточнить ник или @username."
+                )
+            else:
+                target_history_text = (
+                    f"Игрок «{target_query}» не найден среди сохранённых профилей. "
+                    "Не выдумывай его историю; попроси уточнить @username или игровой ник."
+                )
         current_profile = self.storage.player_profile(chat_id, user_id) if user_id is not None else None
         current_gender = (
             "мужчина" if current_profile and current_profile["gender"] == "male"
@@ -321,6 +374,16 @@ class AIEngine:
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "system", "content": player_facts + gender_hint},
+            {"role": "system", "content": (
+                "ЦЕЛЕВОЙ ЮМОРИСТИЧЕСКИЙ РАЗБОР ИГРОКА. Если пользователь попросил пробить/описать конкретного игрока, "
+                "используй только его целевой профиль и его сообщения ниже. Подмечай повторяющиеся темы, активность, игровые интересы "
+                "и подтверждённые привычки общения; превращай их в короткий живой клановый подкол. Не делай выводов о работе или личной "
+                "жизни из отсутствия данных. Если игрок не найден или совпадений несколько — уточни ник, не выдумывай досье. "
+                "Если целевого запроса нет, это правило не меняет обычный ответ.\n\n"
+                + (f"Запрос на разбор: {player_lookup.group(0)}\\n" if player_lookup else "Запрос на разбор игрока не обнаружен.\\n")
+                + (f"Целевой профиль: {json.dumps(target_profile, ensure_ascii=False)}\\n" if target_profile else "")
+                + (f"Сообщения целевого игрока:\\n{target_history_text}" if player_lookup else "")
+            )},
             {"role": "system", "content": (
                 "Сохранённые профили игроков по Telegram ID (применяй только к соответствующему человеку):\n"
                 + profile_text + "\n"
