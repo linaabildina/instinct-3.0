@@ -169,7 +169,7 @@ def _is_knowledge_correction(text: str) -> bool:
         "правильно будет", "правильный ответ", "не так", "не верно",
     )
     has_marker = any(marker in normalized for marker in markers)
-    has_contrast = bool(re.search(r"\\bне\\b.{0,120}\\bа\\b", normalized, re.S))
+    has_contrast = bool(re.search(r"\\bне\\b.{0,120}\\bа\b", normalized, re.S))
     return has_marker or has_contrast
 
 
@@ -1680,12 +1680,12 @@ async def _try_contextual_sticker(message: Message, user_text: str, answer: str)
     F.text,
     lambda message: _is_allowed_chat(message)
     and _addressed_to_alina(message.text or "")
-    and bool(re.search(r"(?i)\b(?:расскажи|опиши|охарактеризуй)\s+(?:мне\s+)?(?:о\s+)?(?:пользователе|игрока?|человеке)\s+@?[A-Za-z0-9_]{3,32}\\b", message.text or ""))
+    and bool(re.search(r"(?i)\b(?:расскажи|опиши|охарактеризуй)\s+(?:мне\s+)?(?:о\s+)?(?:пользователе|игрока?|человеке)\s+@?[A-Za-z0-9_]{3,32}\b", message.text or ""))
 )
 async def describe_player(message: Message):
     """Смешно описывает игрока по реальным сообщениям, не выдумывая биографию."""
     match = re.search(
-        r"(?i)\b(?:расскажи|опиши|охарактеризуй)\s+(?:мне\s+)?(?:о\s+)?(?:пользователе|игрока?|человеке)\s+@?([A-Za-z0-9_]{3,32})\\b",
+        r"(?i)\b(?:расскажи|опиши|охарактеризуй)\s+(?:мне\s+)?(?:о\s+)?(?:пользователе|игрока?|человеке)\s+@?([A-Za-z0-9_]{3,32})\b",
         message.text or "",
     )
     if not match:
